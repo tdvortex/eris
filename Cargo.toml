@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "eris-bin",
+    "eris-lib",
+]
