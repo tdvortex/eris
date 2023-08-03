@@ -1,3 +1,8 @@
+#![warn(missing_docs)]
+//! eris-discord sets up a service router expose an endpoint to Discord,
+//! creates a deployment function for creating the application commands,
+//! and supplies utility functions to make calls to the Discord API.
+
 use axum::{
     extract::{RawBody, State},
     http::HeaderMap,
@@ -8,6 +13,9 @@ use axum::{
 use ed25519_dalek::Verifier;
 use hyper::{body::to_bytes, StatusCode};
 use twilight_model::application::interaction::Interaction;
+
+/// Module for deploying application commands to Discord.
+pub mod deploy;
 
 async fn verify_discord_signature(
     public_key: ed25519_dalek::PublicKey,
@@ -52,8 +60,10 @@ async fn verify_discord_signature(
         .is_ok()
 }
 
+/// Persistent state needed to respond to Discord interactions.
 #[derive(Debug, Clone)]
 pub struct DiscordInteractionState {
+    /// This application's public key, fromthe Discord developer portal
     pub discord_public_key: ed25519_dalek::PublicKey,
 }
 
@@ -86,6 +96,8 @@ async fn post_interaction(_interaction: &Interaction) -> impl IntoResponse {
     todo!()
 }
 
+/// Creates a router at the relative path of "/" that responds to POST requests
+/// made by Discord for interactions (both slash and message commands).
 pub fn discord_router(state: DiscordInteractionState) -> Router {
     Router::new()
         .route("/", post(post_discord))
