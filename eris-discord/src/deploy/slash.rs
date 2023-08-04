@@ -83,11 +83,11 @@ pub fn unblock() -> Command {
 pub fn unfollow() -> Command {
     CommandBuilder::new(
         "unfollow",
-        "Unfollow an actor in this channel. Their posts will still appear if boosted.",
+        "Unfollow an actor in this channel. Their posts will still appear if shared.",
         CommandType::ChatInput,
     )
     .option(
-        StringOptionBuilder::new("url", "The URL of the actor to unblock")
+        StringOptionBuilder::new("url", "The URL of the actor to unfollow")
             .autocomplete(false)
             .required(true),
     )
