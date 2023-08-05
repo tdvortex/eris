@@ -13,6 +13,9 @@ pub mod deploy;
 /// [`tower::Service`]s.
 pub mod layers;
 
+/// [`tower::Service]s that can be used to implement Discord-related binaries.
+pub mod services;
+
 async fn post_interaction(Json(_interaction): Json<Interaction>) -> impl IntoResponse {
     todo!()
 }
