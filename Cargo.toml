@@ -1,7 +1,5 @@
 [workspace]
 
 members = [
-    "eris-bin",
     "eris-discord",
-    "eris-lib",
 ]
