@@ -3,11 +3,7 @@
 //! creates a deployment function for creating the application commands,
 //! and supplies utility functions to make calls to the Discord API.
 
-use axum::{
-    response::IntoResponse,
-    routing::post,
-    Router, Json,
-};
+use axum::{response::IntoResponse, routing::post, Json, Router};
 use twilight_model::application::interaction::Interaction;
 
 /// Commands to deploy application commands to Discord.
@@ -26,5 +22,8 @@ async fn post_interaction(Json(_interaction): Json<Interaction>) -> impl IntoRes
 pub fn discord_router(public_key: ed25519_dalek::PublicKey) -> Router {
     Router::new()
         .route("/", post(post_interaction))
-        .route_layer(axum::middleware::from_fn_with_state(public_key, layers::verify_discord_signature_hyper))
+        .route_layer(axum::middleware::from_fn_with_state(
+            public_key,
+            layers::verify_discord_signature_hyper,
+        ))
 }
