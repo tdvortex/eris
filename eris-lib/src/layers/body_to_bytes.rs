@@ -20,16 +20,6 @@ where
     InnerError(I),
 }
 
-impl<X, I> From<X> for BodyToBytesServiceError<X, I>
-where
-    X: Debug + Display,
-    I: Debug + Display,
-{
-    fn from(value: X) -> Self {
-        Self::ToBytesError(value)
-    }
-}
-
 async fn body_to_bytes<B>(request: Request<B>) -> Result<Request<Bytes>, B::Error>
 where
     B: http_body::Body,
@@ -50,7 +40,9 @@ where
     B::Error: Debug + Display,
     S::Error: Debug + Display,
 {
-    service_fn(body_to_bytes).then(|result_request_bytes| async move {
+    service_fn(body_to_bytes)
+    .map_err(BodyToBytesServiceError::ToBytesError)
+    .then(|result_request_bytes| async move {
         match result_request_bytes {
             Ok(request_bytes) => match service.ready().await {
                 Ok(ready_service) => match ready_service.call(request_bytes).await {
@@ -59,7 +51,7 @@ where
                 },
                 Err(e) => Err(BodyToBytesServiceError::InnerError(e)),
             },
-            Err(e) => Err(BodyToBytesServiceError::ToBytesError(e)),
+            Err(e) => Err(e),
         }
     })
 }
