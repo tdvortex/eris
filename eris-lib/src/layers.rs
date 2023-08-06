@@ -8,7 +8,6 @@ pub mod lambda_http_compatibility;
 pub mod verify_signature;
 pub use verify_signature::{verify_discord_signature_hyper, verify_discord_signature_lambda};
 
-
 /// Authentication [`tower::Layer`] to verify Discord's [`ed25519_dalek::Signature`] on incoming
 /// [`twilight_model::application::interaction::Interaction`]s before passing the [`http::Request`]
 /// on to additional [`tower::Service`]s.

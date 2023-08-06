@@ -1,13 +1,18 @@
-
-use axum::{response::{Response, IntoResponse}, middleware::Next, extract::State, RequestPartsExt};
+use axum::{
+    extract::State,
+    middleware::Next,
+    response::{IntoResponse, Response},
+    RequestPartsExt,
+};
 use ed25519_dalek::Verifier;
-use http::{HeaderMap, StatusCode, Request};
+use http::{HeaderMap, Request, StatusCode};
 use hyper::body::to_bytes;
 
-const SIGNATURE_REJECTED: (StatusCode, &'static str) = (StatusCode::UNAUTHORIZED, "invalid request signature");
+const SIGNATURE_REJECTED: (StatusCode, &str) =
+    (StatusCode::UNAUTHORIZED, "invalid request signature");
 
 async fn verify_discord_signature_inner(
-    public_key: ed25519_dalek::PublicKey, 
+    public_key: ed25519_dalek::PublicKey,
     signature: &ed25519_dalek::Signature,
     timestamp_bytes: &[u8],
     body_bytes: &[u8],
@@ -28,7 +33,9 @@ fn get_signature(headers: &HeaderMap) -> Option<ed25519_dalek::Signature> {
 }
 
 fn get_timestamp_bytes(headers: &HeaderMap) -> Option<&[u8]> {
-    headers.get("X-Signature-Timestamp").map(|header_value| header_value.as_bytes())
+    headers
+        .get("X-Signature-Timestamp")
+        .map(|header_value| header_value.as_bytes())
 }
 
 /// A middleware function which checks that the correct headers for a Discord
@@ -45,7 +52,7 @@ pub async fn verify_discord_signature_hyper(
     };
 
     let Some(signature) = get_signature(&headers) else {
-        return SIGNATURE_REJECTED.into_response(); 
+        return SIGNATURE_REJECTED.into_response();
     };
 
     let Some(timestamp_bytes) = get_timestamp_bytes(&headers) else {
@@ -66,7 +73,6 @@ pub async fn verify_discord_signature_hyper(
     next.run(request).await
 }
 
-
 /// A middleware function which checks that the correct headers for a Discord
 /// public key signature are present and valid, given a request with a [`lambda_http::Body`] payload,
 /// before passing the request on.
@@ -81,7 +87,7 @@ pub async fn verify_discord_signature_lambda(
     };
 
     let Some(signature) = get_signature(&headers) else {
-        return SIGNATURE_REJECTED.into_response(); 
+        return SIGNATURE_REJECTED.into_response();
     };
 
     let Some(timestamp_bytes) = get_timestamp_bytes(&headers) else {

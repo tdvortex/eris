@@ -6,7 +6,7 @@ pub mod slash;
 
 use std::{fmt::Display, num::NonZeroU64};
 
-use message::message_commands;
+pub use message::message_commands;
 pub use slash::slash_commands;
 use twilight_http::Client;
 use twilight_model::{application::command::Command, id::Id};
@@ -19,7 +19,7 @@ pub async fn set_global_commands(token: impl Display, application_id: NonZeroU64
         .chain(message_commands().into_iter())
         .collect();
 
-    let response = Client::new(format!("Bearer {}", token))
+    let response = Client::new(format!("Bearer {token}"))
         .interaction(Id::from(application_id))
         .set_global_commands(&commands)
         .await
@@ -32,29 +32,29 @@ pub async fn set_global_commands(token: impl Display, application_id: NonZeroU64
 
         match response.text().await {
             Ok(text) => panic!(
-                "Global command deployment failed, status code: {}, body: {}",
-                status_u16, text
-            ),
+                "Global command deployment failed, status code: {status_u16}, body: {text}"),
             Err(e) => panic!(
-                "Global command deployment failed, status code: {}, but could not decode body for reason {}",
-                status_u16, e
-            ),
+                "Global command deployment failed, status code: {status_u16}, but could not decode body for reason {e}"),
         }
     } else {
-        println!("Deployment successful, status code {}", status);
+        println!("Deployment successful, status code {status}");
     }
 }
 
 /// Sets all slash commands and message commands for a specific guild.
 /// This is the test deployment--it will expose these commands only on
 /// a specific server.
-pub async fn set_guild_commands(token: impl Display, application_id: NonZeroU64, guild_id: NonZeroU64) {
+pub async fn set_guild_commands(
+    token: impl Display,
+    application_id: NonZeroU64,
+    guild_id: NonZeroU64,
+) {
     let commands: Vec<Command> = slash_commands()
         .into_iter()
         .chain(message_commands().into_iter())
         .collect();
 
-    let response = Client::new(format!("Bearer {}", token))
+    let response = Client::new(format!("Bearer {token}"))
         .interaction(Id::from(application_id))
         .set_guild_commands(Id::from(guild_id), &commands)
         .await
@@ -67,15 +67,11 @@ pub async fn set_guild_commands(token: impl Display, application_id: NonZeroU64,
 
         match response.text().await {
             Ok(text) => panic!(
-                "Guild deployment to {} failed, status code: {}, body: {}",
-                guild_id, status_u16, text
-            ),
+                "Guild deployment to {guild_id} failed, status code: {status_u16}, body: {text}"),
             Err(e) => panic!(
-                "Guild deployment to {} failed, status code: {}, but could not decode body for reason {}",
-                guild_id, status_u16, e
-            ),
+                "Guild deployment to {guild_id} failed, status code: {status_u16}, but could not decode body for reason {e}"),
         }
     } else {
-        println!("Deployment successful, status code {}", status);
+        println!("Deployment successful, status code {status}");
     }
 }

@@ -1,6 +1,6 @@
 #![warn(missing_docs)]
 //! eris-lib defines the logic of the Eris social network as a number of
-//! interdependent [`tower::Service`]s and [`tower::Layer`]s, as well as 
+//! interdependent [`tower::Service`]s and [`tower::Layer`]s, as well as
 //! functions which can be loaded into a binary and executed to deploy
 //! to Discord.
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use tower::{Layer, Service};
-use twilight_model::id::{Id, marker::ApplicationMarker};
+use twilight_model::id::{marker::ApplicationMarker, Id};
 
 /// The shared state required to make requests to Discord using
 /// [`twilight_http::Client`].
@@ -15,7 +15,7 @@ pub struct TwilightClientState {
 
 /// A layer which provides [TwilightClientState] to a [tower::Service]
 /// that takes ([Arc]<[TwilightClientState]>, R) as its Request, converting it
-/// into a service that only takes R as its Request. 
+/// into a service that only takes R as its Request.
 pub struct TwilightClientProviderLayer {
     state: Arc<TwilightClientState>,
 }

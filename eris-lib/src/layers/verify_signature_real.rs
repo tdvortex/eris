@@ -1,15 +1,15 @@
-use std::{future::Future, pin::Pin, convert::Infallible};
+use std::{convert::Infallible, future::Future, pin::Pin};
 
 use axum::RequestPartsExt;
 use ed25519_dalek::Verifier;
-use http::{Request, StatusCode, HeaderMap};
-use serde_json::{Value as JsonValue, json};
+use futures_util::{FutureExt, TryFutureExt};
+use http::{HeaderMap, Request, StatusCode};
+use hyper::{body::to_bytes, Body as HyperBody};
+use serde_json::{json, Value as JsonValue};
 use thiserror::Error;
-use tower::{Service, Layer};
-use hyper::{Body as HyperBody, body::to_bytes};
-use futures_util::{TryFutureExt, FutureExt};
+use tower::{Layer, Service};
 
-/// An error that can be produced during the processing of a call to the 
+/// An error that can be produced during the processing of a call to the
 /// Discord endpoint.
 #[derive(Debug, Error)]
 pub enum DiscordEndpointError {
@@ -21,7 +21,7 @@ pub enum DiscordEndpointError {
 /// A layer which verifies the message signature using Discord's public key to
 /// ensure it's authentic.
 pub struct DiscordVerificationLayer {
-    public_key: ed25519_dalek::PublicKey
+    public_key: ed25519_dalek::PublicKey,
 }
 
 impl DiscordVerificationLayer {
@@ -31,8 +31,8 @@ impl DiscordVerificationLayer {
     }
 }
 
-impl<S> Layer<S> for DiscordVerificationLayer 
-    where
+impl<S> Layer<S> for DiscordVerificationLayer
+where
     S: Service<Request<HyperBody>, Response = (StatusCode, JsonValue)> + 'static,
     S::Error: Into<DiscordEndpointError>,
     S: Clone,
@@ -48,7 +48,7 @@ impl<S> Layer<S> for DiscordVerificationLayer
 }
 
 /// An error that can occur while attempting to verify Discord's signature.
-/// This indicates that the signature could not be verified or falsified; 
+/// This indicates that the signature could not be verified or falsified;
 /// a falsified signature should not return an error.
 #[derive(Debug, Error)]
 pub enum DiscordVerificationServiceError {
@@ -58,23 +58,23 @@ pub enum DiscordVerificationServiceError {
     HyperError(#[from] hyper::Error),
 }
 
-/// A middleware service which verifies the signature on a [`http::Request`] 
+/// A middleware service which verifies the signature on a [`http::Request`]
 /// with a [`hyper::Body`]. If so verified, it passes the request on to the
 /// next Service. If falsified, it returns 401 UNAUTHORIZED with a short error
-/// Json object. If the request cannot be verified or falsified, returns 
+/// Json object. If the request cannot be verified or falsified, returns
 /// [DiscordEndpointError::DiscordVerificationService`].
-pub struct DiscordVerificationService<S> 
-    where
+pub struct DiscordVerificationService<S>
+where
     S: Service<Request<HyperBody>, Response = (StatusCode, JsonValue)> + 'static,
     S::Error: Into<DiscordEndpointError>,
     S: Clone,
 {
     public_key: ed25519_dalek::PublicKey,
-    inner: S
+    inner: S,
 }
 
 async fn verify_discord_signature_inner(
-    public_key: ed25519_dalek::PublicKey, 
+    public_key: ed25519_dalek::PublicKey,
     signature: &ed25519_dalek::Signature,
     timestamp_bytes: &[u8],
     body_bytes: &[u8],
@@ -95,9 +95,10 @@ fn get_signature(headers: &HeaderMap) -> Option<ed25519_dalek::Signature> {
 }
 
 fn get_timestamp_bytes(headers: &HeaderMap) -> Option<&[u8]> {
-    headers.get("X-Signature-Timestamp").map(|header_value| header_value.as_bytes())
+    headers
+        .get("X-Signature-Timestamp")
+        .map(|header_value| header_value.as_bytes())
 }
-
 
 async fn verify_discord_signature(
     public_key: ed25519_dalek::PublicKey,
@@ -130,9 +131,8 @@ async fn verify_discord_signature(
     Ok(Some(request))
 }
 
-
-impl<S> Service<Request<HyperBody>> for DiscordVerificationService<S> 
-    where
+impl<S> Service<Request<HyperBody>> for DiscordVerificationService<S>
+where
     S: Service<Request<HyperBody>, Response = (StatusCode, JsonValue)> + 'static,
     S::Error: Into<DiscordEndpointError>,
     S: Clone,
@@ -143,7 +143,10 @@ impl<S> Service<Request<HyperBody>> for DiscordVerificationService<S>
 
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
-    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
         match self.inner.poll_ready(cx) {
             std::task::Poll::Ready(res) => std::task::Poll::Ready(res.map_err(|e| e.into())),
             std::task::Poll::Pending => std::task::Poll::Pending,
@@ -153,16 +156,25 @@ impl<S> Service<Request<HyperBody>> for DiscordVerificationService<S>
     fn call(&mut self, req: Request<HyperBody>) -> Self::Future {
         let public_key = self.public_key;
         let mut inner = self.inner.clone();
-        Box::pin(verify_discord_signature(public_key, req)
-        .err_into::<DiscordEndpointError>()
-        .and_then(move |opt_request| {
-            if let Some(request) = opt_request {
-                inner.call(request).err_into::<DiscordEndpointError>().left_future()
-            } else {
-                std::future::ready(Ok((StatusCode::UNAUTHORIZED, json!({
-                    "error": "signature invalid"
-                })))).right_future()
-            }
-        }))
+        Box::pin(
+            verify_discord_signature(public_key, req)
+                .err_into::<DiscordEndpointError>()
+                .and_then(move |opt_request| {
+                    if let Some(request) = opt_request {
+                        inner
+                            .call(request)
+                            .err_into::<DiscordEndpointError>()
+                            .left_future()
+                    } else {
+                        std::future::ready(Ok((
+                            StatusCode::UNAUTHORIZED,
+                            json!({
+                                "error": "signature invalid"
+                            }),
+                        )))
+                        .right_future()
+                    }
+                }),
+        )
     }
 }

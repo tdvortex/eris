@@ -3,5 +3,7 @@
 /// DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE to prevent timeouts.
 pub mod discord_endpoint;
 
-/// A service which tak
+/// A[tower::Service] which processes [DiscordClientAction]s and
+/// sometimes returns a [DiscordClientActionResponse] for additional
+/// processing.
 pub mod twilight_service;

@@ -5,7 +5,10 @@ use tower::{Service, ServiceBuilder};
 use twilight_http::request::AuditLogReason;
 use twilight_model::id::{marker::ApplicationMarker, Id};
 
-use crate::{payloads::{DiscordClientAction, DiscordClientActionResponse, MessagePayload}, layers::twilight_client_provider_layer::{TwilightClientState, TwilightClientProviderLayer}};
+use crate::{
+    layers::twilight_client_provider_layer::{TwilightClientProviderLayer, TwilightClientState},
+    payloads::{DiscordClientAction, DiscordClientActionResponse, MessagePayload},
+};
 
 /// Wrapper around two very similar validation errors from [twilight_validate].
 #[derive(Debug, Error)]
@@ -32,7 +35,7 @@ pub enum TwilightServiceError {
     /// The HTTP request succeeded and a response was provided, but an error
     /// occurred while trying to deserialize the response from Discord.
     #[error("Error deserializing body from Discord response: {0}")]
-   DeserializationBodyError(#[from] twilight_http::response::DeserializeBodyError),
+    DeserializationBodyError(#[from] twilight_http::response::DeserializeBodyError),
 }
 
 async fn twilight_service_fn(
@@ -42,8 +45,7 @@ async fn twilight_service_fn(
     let application_id = state.application_id;
     match action {
         DiscordClientAction::CreateMessage(create_message) => {
-            let request = twilight_client
-                .create_message(create_message.channel_id);
+            let request = twilight_client.create_message(create_message.channel_id);
             let response = match &create_message.message {
                 MessagePayload::Text(text) => {
                     request
@@ -191,6 +193,9 @@ pub fn twilight_service(
     Error = TwilightServiceError,
 > {
     ServiceBuilder::new()
-    .layer(TwilightClientProviderLayer::new(twilight_client, application_id))
-    .service_fn(twilight_service_fn)
+        .layer(TwilightClientProviderLayer::new(
+            twilight_client,
+            application_id,
+        ))
+        .service_fn(twilight_service_fn)
 }

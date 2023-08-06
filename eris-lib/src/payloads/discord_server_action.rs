@@ -1,5 +1,5 @@
-use twilight_model::application::interaction::Interaction;
 use crate::payloads::DiscordClientActionResponse;
+use twilight_model::application::interaction::Interaction;
 
 /// Actions that Discord's server might take which may require processing by Eris.
 pub enum DiscordServerAction {
