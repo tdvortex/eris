@@ -3,6 +3,11 @@
 /// DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE to prevent timeouts.
 pub mod discord_endpoint;
 
+/// A service which receives a [DiscordClientAction] as a request
+/// and returns () as a response if successful.
+pub mod discord_client_action_service;
+
+
 /// A[tower::Service] which processes [DiscordClientAction]s and
 /// sometimes returns a [DiscordClientActionResponse] for additional
 /// processing.
