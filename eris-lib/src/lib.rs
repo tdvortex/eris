@@ -14,3 +14,6 @@ pub mod layers;
 pub mod services;
 
 pub mod experiment;
+
+/// [serde] compatible payloads for queue services.
+pub mod payloads;

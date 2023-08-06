@@ -14,3 +14,5 @@ pub use verify_signature::{verify_discord_signature_hyper, verify_discord_signat
 /// on to additional [`tower::Service`]s.
 pub mod verify_signature_real;
 
+/// A [`tower::Layer`] which provides [TwilightClientState] to a [tower::Service].
+pub mod twilight_client_provider_layer;
