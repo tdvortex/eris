@@ -1,11 +1,9 @@
 use std::fmt::{Debug, Display};
 
-use axum::{middleware::Next, response::Response, Json};
-use http::{Request, StatusCode};
-use hyper::Body as HyperBody;
+use http::StatusCode;
 use serde_json::Value as JsonValue;
 use thiserror::Error;
-use tower::{service_fn, Service, ServiceBuilder, ServiceExt};
+use tower::{Service, ServiceBuilder, ServiceExt};
 use twilight_model::{
     application::interaction::{Interaction, InteractionType},
     http::interaction::{InteractionResponse, InteractionResponseType},
@@ -17,20 +15,25 @@ use crate::{
 };
 
 /// The response to a PING request.
-const PONG: InteractionResponse = InteractionResponse {
+pub const PONG: InteractionResponse = InteractionResponse {
     kind: InteractionResponseType::Pong,
     data: None,
 };
 
-const DEFER: InteractionResponse = InteractionResponse {
+/// A response telling Discord that we will respond to this interaction
+/// later.
+pub const DEFER: InteractionResponse = InteractionResponse {
     kind: InteractionResponseType::DeferredChannelMessageWithSource,
     data: None,
 };
 
+/// An error attempting to respond to an Interaction.
 #[derive(Debug, Error)]
 pub enum InteractionResponseError<Q: Debug + Display> {
+    /// Could not serialize the JSON response.
     #[error("Error while serializing to JSON: {0}")]
     SerializationError(#[from] serde_json::Error),
+    /// Could not queue
     #[error("Error from the queue service: {0}")]
     QueueServiceError(Q),
 }
@@ -55,7 +58,9 @@ where
     Ok((StatusCode::OK, serde_json::to_value(DEFER)?))
 }
 
-fn interaction_response_service<Q>(
+/// Returns a service which takes an incoming Interaction, queues it, and
+/// responds as quickly as possible with 200 OK and DEFERRED_CHANNEL_MESSAGE.
+pub fn interaction_response_service<Q>(
     queue_service: Q,
 ) -> impl Service<
     Interaction,

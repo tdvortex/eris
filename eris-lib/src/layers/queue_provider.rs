@@ -5,13 +5,16 @@ use pin_project::pin_project;
 use thiserror::Error;
 use tower::{Service, Layer};
 
+/// An error from a QueueProviderLayer.
 #[derive(Debug, Error)]
 pub enum QueueProviderLayerError<Q, I> 
     where Q: Debug + Display,
     I: Debug + Display,
 {
+    /// An error occurred while attempting to queue something.
     #[error("Error with the queueing service: {0}")]
     QueueError(Q),
+    /// An error occurred with the inner service.
     #[error("Error with the inner service: {0}")]
     InnerError(I),
 }
@@ -62,6 +65,7 @@ pub struct QueueProviderService<Q, T, S>
     _message: PhantomData<T>,
 }
 
+/// The future returned by a [QueueProviderService].
 #[pin_project]
 pub struct QueueProviderFuture<F, Q> {
     #[pin]

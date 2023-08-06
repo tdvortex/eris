@@ -8,7 +8,9 @@ pub mod discord_endpoint_real;
 /// and returns () as a response if successful.
 pub mod discord_client_action_service;
 
-pub mod queue_interaction;
+/// A service which responds to an Interaction by queuing it and responding
+/// with DEFERRED_CHANNEL_MESSAGE as quickly as possible.
+pub mod interaction_response;
 
 /// A[tower::Service] which processes [DiscordClientAction]s and
 /// sometimes returns a [DiscordClientActionResponse] for additional

@@ -12,6 +12,11 @@ pub mod default_if_none;
 /// with a payload of [hyper::Body] into a [http::Request] with a payload of [hyper::body::Bytes].
 pub mod body_to_bytes;
 
+/// A [`tower::Layer`] which converts a [tower::Service] that takes a [http::Request]
+/// with a payload of some T that is DeserializeOwned into a [http::Request] 
+/// with a payload of [hyper::body::Bytes].
+pub mod deserialize_json;
+
 /// A [`tower::Layer`] which provides a queue service to another service.
 pub mod queue_provider;
 

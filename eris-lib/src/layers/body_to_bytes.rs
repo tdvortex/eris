@@ -5,7 +5,7 @@ use hyper::body::Bytes;
 use thiserror::Error;
 use tower::{service_fn, Service, ServiceExt};
 
-/// An error which might be returned by the the body-to-bytes layer.
+/// An error which might be returned by the the body-to-bytes service.
 #[derive(Debug, Error)]
 pub enum BodyToBytesServiceError<X, I>
 where
