@@ -3,10 +3,16 @@
 pub mod lambda_http_compatibility;
 
 /// A [`tower::Layer`] which converts a [tower::Service] that takes a Request
-/// and returns a Response that is Default, into one which
+/// and returns a Response that is Default, into one which takes an 
+/// Option<Request> and returns the same Response type, using the default if
+/// the input is None.
 pub mod default_if_none;
 
-/// A [`tower::Layer`] which provides the ability to queue [DiscordServerAction]s to a [tower::Service].
+/// A [`tower::Layer`] which converts a [tower::Service] that takes a [http::Request]
+/// with a payload of [hyper::Body] into a [http::Request] with a payload of [hyper::body::Bytes].
+pub mod body_to_bytes;
+
+/// A [`tower::Layer`] which provides a queue service to another service.
 pub mod queue_provider;
 
 /// Authentication [`tower::Layer`] to verify Discord's [`ed25519_dalek::Signature`] on incoming

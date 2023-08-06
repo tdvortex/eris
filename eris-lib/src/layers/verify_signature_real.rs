@@ -149,6 +149,7 @@ where
 
     fn call(&mut self, req: Request<HyperBody>) -> Self::Future {
         let public_key = self.public_key;
+        // BUG
         let mut inner = self.inner.clone();
         Box::pin(
             verify_discord_signature(public_key, req)
