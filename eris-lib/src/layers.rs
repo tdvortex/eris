@@ -17,6 +17,11 @@ pub mod body_to_bytes;
 /// with a payload of [hyper::body::Bytes].
 pub mod deserialize_json;
 
+/// A [`tower::Layer`] which converts a [tower::Service] that takes some T as 
+/// its Request into a Service that that takes a [http::Request] with a 
+/// payload of some T.
+pub mod extract_body;
+
 /// A [`tower::Layer`] which provides a queue service to another service.
 pub mod queue_provider;
 
