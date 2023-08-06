@@ -6,7 +6,7 @@ use twilight_http::request::AuditLogReason;
 use twilight_model::id::{marker::ApplicationMarker, Id};
 
 use crate::{
-    layers::twilight_client_provider_layer::{TwilightClientProviderLayer, TwilightClientState},
+    layers::twilight_client_provider::{TwilightClientProviderLayer, TwilightClientState},
     payloads::{DiscordClientAction, DiscordClientActionResponse, MessagePayload},
 };
 
