@@ -7,7 +7,7 @@ pub mod lambda_http_compatibility;
 pub mod default_if_none;
 
 /// A [`tower::Layer`] which provides the ability to queue [DiscordServerAction]s to a [tower::Service].
-pub mod discord_server_action_queue_provider;
+pub mod queue_provider;
 
 /// Authentication [`tower::Layer`] to verify Discord's [`ed25519_dalek::Signature`] on incoming
 /// [`twilight_model::application::interaction::Interaction`]s before passing the [`http::Request`]
