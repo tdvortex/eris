@@ -11,6 +11,3 @@ pub mod discord_handler;
 
 /// A service which reads and writes to a Postgres database.
 pub mod postgres_client;
-
-/// A service which makes GET and POST requests to external ActivityPub APIs.
-pub mod activitypub_client;
