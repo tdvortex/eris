@@ -57,7 +57,7 @@ where
 
 /// An error which might occur with the Discord endpoint.
 /// Triggers either a 4xx response with a JSON payload,
-/// or a 5xx response combined with logging the error.
+/// or a 5xx response combined with logging the error using tracing
 #[derive(Debug, Error)]
 pub enum DiscordEndpointError<B, Q>
 where
@@ -67,9 +67,11 @@ where
     Q::Error: Debug + Display,
 {
     /// An error while trying to parse or validate the request.
+    /// Triggers a 4xx response.
     #[error("Error interpreting the request: {0}")]
     DiscordEndpointClientError(#[from] DiscordEndpointClientError<B>),
     /// An error trying to service a valid request.
+    /// Triggers a 5xx request.
     #[error("Error handling a valid request: {0}")]
     DiscordEndpointServerError(#[from] DiscordEndpointServerError<Q>),
 }
@@ -160,6 +162,18 @@ where
                     json!({"error": "could not interpret interaction"}),
                 )),
             },
-            Err(DiscordEndpointError::DiscordEndpointServerError(_)) => todo!(),
+            Err(DiscordEndpointError::DiscordEndpointServerError(e)) => {
+                match e {
+                    DiscordEndpointServerError::QueueServiceError(e) => {
+                        tracing::error!("server action queue failed: {e}");
+                    }
+                    DiscordEndpointServerError::SerializationError(e) => {
+                        tracing::error!("serializing response failed: {e}");
+                    }
+                };
+
+                // Don't tell Discord how we screwed up
+                Ok((StatusCode::BAD_REQUEST, json!({"error": "internal server error"})))
+            }
         })
 }
