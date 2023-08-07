@@ -4,7 +4,7 @@ use std::{
 };
 
 use http::{Request, StatusCode};
-use serde_json::Value as JsonValue;
+use serde_json::{Value as JsonValue, json};
 use thiserror::Error;
 use tower::{Service, ServiceBuilder, ServiceExt};
 use twilight_model::application::interaction::Interaction;
@@ -23,14 +23,13 @@ use crate::{
 
 use super::interaction_response::{interaction_response_service, InteractionResponseError};
 
-/// An error which might occur with the Discord endpoint.
+/// An error while trying to parse or validate the request.
+/// Triggers a 4xx response code and a JSON explanation.
 #[derive(Debug, Error)]
-pub enum DiscordEndpointError<B, Q>
+pub enum DiscordEndpointClientError<B>
 where
     B: http_body::Body,
     B::Error: Debug + Display,
-    Q: Service<DiscordServerAction, Response = ()>,
-    Q::Error: Debug + Display,
 {
     /// Error extracting Bytes from request body
     #[error("Error extracting Bytes from request body: {0}")]
@@ -40,13 +39,42 @@ where
     DiscordSignatureVerificationError(#[from] DiscordSignatureVerificationFailure),
     /// Error deserializing Interaction from body
     #[error("Error deserializing Interaction from request body: {0}")]
-    DeserializationError(serde_json::Error),
+    DeserializationError(#[from] serde_json::Error),
+}
+
+/// An error trying to service a valid request.
+/// Triggers a 5xx response code and logging the error.
+#[derive(Debug, Error)]
+pub enum DiscordEndpointServerError<Q>
+where
+    Q: Service<DiscordServerAction, Response = ()>,
+    Q::Error: Debug + Display,
+{
     /// Error queueing a received Interaction
     #[error("Error queueing a received Interaction: {0}")]
     QueueServiceError(Q::Error),
     /// Error serializing response
     #[error("Error trying to serialize a response: {0}")]
-    SerializationError(serde_json::Error),
+    SerializationError(#[from] serde_json::Error),
+}
+
+/// An error which might occur with the Discord endpoint.
+/// Triggers either a 4xx response with a JSON payload,
+/// or a 5xx response combined with logging the error.
+#[derive(Debug, Error)]
+pub enum DiscordEndpointError<B, Q>
+where
+    B: http_body::Body,
+    B::Error: Debug + Display,
+    Q: Service<DiscordServerAction, Response = ()>,
+    Q::Error: Debug + Display,
+{
+    /// An error while trying to parse or validate the request.
+    #[error("Error interpreting the request: {0}")]
+    DiscordEndpointClientError(#[from] DiscordEndpointClientError<B>),
+    /// An error trying to service a valid request.
+    #[error("Error handling a valid request: {0}")]
+    DiscordEndpointServerError(#[from] DiscordEndpointServerError<Q>),
 }
 
 impl<B, Q> From<Infallible> for DiscordEndpointError<B, Q>
@@ -83,25 +111,57 @@ where
         .service(interaction_response_service(server_action_queue_service))
         .map_err(|e| -> DiscordEndpointError<B, Q> {
             match e {
-                BodyToBytesServiceError::ToBytesError(e) => DiscordEndpointError::ToBytesError(e),
+                BodyToBytesServiceError::ToBytesError(e) => {
+                    DiscordEndpointError::DiscordEndpointClientError(
+                        DiscordEndpointClientError::ToBytesError(e),
+                    )
+                }
                 BodyToBytesServiceError::InnerError(e) => match e {
                     DiscordSignatureVerificationLayerError::DiscordSignatureVerificationFailure(
                         e,
-                    ) => DiscordEndpointError::DiscordSignatureVerificationError(e),
+                    ) => DiscordEndpointError::DiscordEndpointClientError(
+                        DiscordEndpointClientError::DiscordSignatureVerificationError(e),
+                    ),
                     DiscordSignatureVerificationLayerError::InnerError(e) => match e {
                         JsonDeserializationServiceError::JsonDeserialization(e) => {
-                            DiscordEndpointError::DeserializationError(e)
+                            DiscordEndpointError::DiscordEndpointClientError(e.into())
                         }
                         JsonDeserializationServiceError::InnerError(e) => match e {
                             InteractionResponseError::SerializationError(e) => {
-                                DiscordEndpointError::SerializationError(e)
+                                DiscordEndpointError::DiscordEndpointServerError(e.into())
                             }
                             InteractionResponseError::QueueServiceError(e) => {
-                                DiscordEndpointError::QueueServiceError(e)
+                                DiscordEndpointError::DiscordEndpointServerError(
+                                    DiscordEndpointServerError::QueueServiceError(e),
+                                )
                             }
                         },
                     },
                 },
             }
+        })
+        .map_result(|response_result| match response_result {
+            Ok(response) => Ok(response),
+            Err(DiscordEndpointError::DiscordEndpointClientError(e)) => match e {
+                DiscordEndpointClientError::ToBytesError(_) => Ok((StatusCode::BAD_REQUEST, json!({"error": "invalid request body"}))),
+                DiscordEndpointClientError::DiscordSignatureVerificationError(e) => match e {
+                    DiscordSignatureVerificationFailure::MissingHeader(header_name) => {
+                        let error = format!("missing header: {header_name}");
+                        Ok((StatusCode::UNAUTHORIZED, json!({
+                            "error": error
+                        })))
+                    }
+                    DiscordSignatureVerificationFailure::BadFormat(error) => {
+                        Ok((StatusCode::UNAUTHORIZED, json!({
+                            "error": error
+                        })))
+                    }
+                    DiscordSignatureVerificationFailure::InvalidSignature => Ok((StatusCode::UNAUTHORIZED, json!({
+                        "error": "invalid signature"
+                    }))),
+                }
+                DiscordEndpointClientError::DeserializationError(_) => Ok((StatusCode::BAD_REQUEST, json!({"error": "could not interpret interaction"}))),
+            }
+            Err(DiscordEndpointError::DiscordEndpointServerError(_)) => todo!(),
         })
 }

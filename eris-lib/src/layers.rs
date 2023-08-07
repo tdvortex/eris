@@ -1,13 +1,6 @@
-/// A [`tower::Layer`] which converts a [tower::Service] that takes a Request
-/// and returns a Response that is Default, into one which takes an 
-/// Option<Request> and returns the same Response type, using the default if
-/// the input is None.
-pub mod default_if_none;
-
 /// A [`tower::Layer`] which converts a [tower::Service] that takes a [http::Request]
 /// with a payload of [hyper::Body] into a [http::Request] with a payload of [hyper::body::Bytes].
 pub mod body_to_bytes;
-
 /// A [`tower::Layer`] which converts a [tower::Service] that takes a service 
 /// taking a request of type (T, R) into one that only takes type R, by cloning
 /// a shared state T and passing it as the first argument.
