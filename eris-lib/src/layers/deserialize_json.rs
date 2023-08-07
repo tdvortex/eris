@@ -36,7 +36,7 @@ pub async fn deserialize_json_layer_fn<S, T>(
     Request<Bytes>,
     Response = S::Response,
     Error = JsonDeserializationServiceError<S::Error>,
->
+> + Clone
 where
     S: Service<Request<T>>,
     S: Clone,

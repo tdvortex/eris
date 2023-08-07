@@ -31,7 +31,7 @@ where
 
 /// A function which can be passed to [tower::layer::layer_fn] to map a service which takes
 /// Request<Bytes> into one that takes Request<B: Body>.
-pub async fn body_to_bytes_layer_fn<B, S>(
+pub fn body_to_bytes_layer_fn<B, S>(
     mut service: S,
 ) -> impl Service<Request<B>, Response = S::Response, Error = BodyToBytesServiceError<B::Error, S::Error>>
 where

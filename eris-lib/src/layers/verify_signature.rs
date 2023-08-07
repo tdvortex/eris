@@ -1,17 +1,15 @@
-use axum::{
-    extract::State,
-    middleware::Next,
-    response::{IntoResponse, Response},
-    RequestPartsExt,
-};
+use std::convert::Infallible;
+
+use axum::RequestPartsExt;
 use ed25519_dalek::Verifier;
 use http::{HeaderMap, Request, StatusCode};
-use hyper::body::to_bytes;
+use hyper::body::Bytes;
+use serde_json::{json, Value as JsonValue};
+use tower::{layer::layer_fn, service_fn, Layer, Service, ServiceBuilder, ServiceExt};
 
-const SIGNATURE_REJECTED: (StatusCode, &str) =
-    (StatusCode::UNAUTHORIZED, "invalid request signature");
+use super::provide_cloned_state::ClonedStateProviderLayer;
 
-async fn verify_discord_signature_inner(
+async fn verify_discord_signature(
     public_key: ed25519_dalek::PublicKey,
     signature: &ed25519_dalek::Signature,
     timestamp_bytes: &[u8],
@@ -38,67 +36,73 @@ fn get_timestamp_bytes(headers: &HeaderMap) -> Option<&[u8]> {
         .map(|header_value| header_value.as_bytes())
 }
 
-/// A middleware function which checks that the correct headers for a Discord
-/// public key signature are present and valid, given a request with a [`hyper::body::Body`] payload,
-/// before passing the request on.
-pub async fn verify_discord_signature_hyper(
-    State(public_key): State<ed25519_dalek::PublicKey>,
-    request: Request<hyper::body::Body>,
-    next: Next<hyper::body::Body>,
-) -> Response {
-    let (mut parts, raw_body) = request.into_parts();
-    let Ok(headers): Result<HeaderMap, _> = parts.extract().await else {
-        return SIGNATURE_REJECTED.into_response();
-    };
+async fn verify_discord_signature_fn(
+    public_key: ed25519_dalek::PublicKey,
+    request: Request<Bytes>,
+) -> Result<Option<Request<Bytes>>, Infallible> {
+    let (mut parts, bytes) = request.into_parts();
+
+    let headers = parts.extract().await?;
 
     let Some(signature) = get_signature(&headers) else {
-        return SIGNATURE_REJECTED.into_response();
+        return Ok(None);
     };
 
     let Some(timestamp_bytes) = get_timestamp_bytes(&headers) else {
-        return SIGNATURE_REJECTED.into_response();
+        return Ok(None);
     };
 
-    let Some(body_bytes) = to_bytes(raw_body).await.ok() else {
-        return SIGNATURE_REJECTED.into_response();
-    };
-
-    if !verify_discord_signature_inner(public_key, &signature, timestamp_bytes, &body_bytes).await {
-        return SIGNATURE_REJECTED.into_response();
+    if !verify_discord_signature(public_key, &signature, timestamp_bytes, &bytes).await {
+        return Ok(None);
     }
 
     parts.headers = headers;
-    let body = hyper::body::Body::from(body_bytes);
-    let request = Request::from_parts(parts, body);
-    next.run(request).await
+    let request = Request::from_parts(parts, bytes);
+    Ok(Some(request))
 }
 
-/// A middleware function which checks that the correct headers for a Discord
-/// public key signature are present and valid, given a request with a [`lambda_http::Body`] payload,
-/// before passing the request on.
-pub async fn verify_discord_signature_lambda(
-    State(public_key): State<ed25519_dalek::PublicKey>,
-    request: Request<lambda_http::Body>,
-    next: Next<lambda_http::Body>,
-) -> Response {
-    let (mut parts, raw_body) = request.into_parts();
-    let Ok(headers): Result<HeaderMap, _> = parts.extract().await else {
-        return SIGNATURE_REJECTED.into_response();
-    };
+fn verify_discord_signature_service() -> impl Service<
+    (ed25519_dalek::PublicKey, Request<Bytes>),
+    Response = Option<Request<Bytes>>,
+    Error = Infallible,
+> {
+    service_fn(|(public_key, request)| verify_discord_signature_fn(public_key, request))
+}
 
-    let Some(signature) = get_signature(&headers) else {
-        return SIGNATURE_REJECTED.into_response();
-    };
+fn verify_discord_signature_layer_fn<S>(
+    mut service: S,
+) -> impl Service<
+    (ed25519_dalek::PublicKey, Request<Bytes>),
+    Response = (StatusCode, JsonValue),
+    Error = S::Error,
+>
+where
+    S: Service<Request<Bytes>, Response = (StatusCode, JsonValue)> + Clone,
+    S::Error: From<Infallible>,
+{
+    verify_discord_signature_service().then(|res_opt_request| async move {
+        match res_opt_request {
+            Ok(Some(request)) => service.call(request).await,
+            Ok(None) => Ok((
+                StatusCode::UNAUTHORIZED,
+                json!({
+                    "error": "invalid signature"
+                }),
+            )),
+            Err(_infallible) => unreachable!(),
+        }
+    })
+}
 
-    let Some(timestamp_bytes) = get_timestamp_bytes(&headers) else {
-        return SIGNATURE_REJECTED.into_response();
-    };
-
-    if !verify_discord_signature_inner(public_key, &signature, timestamp_bytes, &raw_body).await {
-        return SIGNATURE_REJECTED.into_response();
-    }
-
-    parts.headers = headers;
-    let request = Request::from_parts(parts, raw_body);
-    next.run(request).await
+pub fn verify_discord_signature_layer<S>(public_key: ed25519_dalek::PublicKey) -> impl Layer<S>
+where
+    S: Service<Request<Bytes>, Response = (StatusCode, JsonValue)> + Clone,
+    S::Error: From<Infallible>,
+{
+    layer_fn(move |service: S| {
+        ServiceBuilder::new()
+            .layer(ClonedStateProviderLayer::new(public_key))
+            .layer_fn(verify_discord_signature_layer_fn)
+            .service(service)
+    })
 }

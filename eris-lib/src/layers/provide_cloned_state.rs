@@ -72,3 +72,11 @@ where
         self.inner.call((self.state.clone(), req))
     }
 }
+
+impl<T, S, R> Clone for CloneStateProviderService<T, S, R>
+where T: Clone, S: Service<(T, R)> + Clone
+{
+    fn clone(&self) -> Self {
+        Self { state: self.state.clone(), inner: self.inner.clone(), _inner_request: PhantomData }
+    }
+}

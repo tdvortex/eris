@@ -10,7 +10,7 @@ use twilight_model::{
 };
 
 use crate::{
-    layers::queue_provider::{QueueProviderLayer, QueueProviderLayerError},
+    layers::provide_cloned_state::ClonedStateProviderLayer,
     payloads::DiscordServerAction,
 };
 
@@ -51,6 +51,9 @@ where
     }
 
     queue_service
+        .ready()
+        .await
+        .map_err(|e| InteractionResponseError::QueueServiceError(e))?
         .call(DiscordServerAction::from(interaction))
         .await
         .map_err(|e| InteractionResponseError::QueueServiceError(e))?;
@@ -66,18 +69,13 @@ pub fn interaction_response_service<Q>(
     Interaction,
     Response = (StatusCode, JsonValue),
     Error = InteractionResponseError<Q::Error>,
->
+> + Clone
 where
     Q: Service<DiscordServerAction, Response = ()>,
     Q: Clone,
     Q::Error: Debug + Display,
 {
     ServiceBuilder::new()
-        .layer(QueueProviderLayer::new(queue_service))
+        .layer(ClonedStateProviderLayer::new(queue_service))
         .service_fn(response_to_interaction)
-        .map_err(|e| match e {
-            QueueProviderLayerError::QueueError(e)
-            | QueueProviderLayerError::InnerError(InteractionResponseError::QueueServiceError(e)) => InteractionResponseError::QueueServiceError(e),
-            QueueProviderLayerError::InnerError(e) => e,
-        })
 }
