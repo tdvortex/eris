@@ -6,9 +6,23 @@ use twilight_http::request::AuditLogReason;
 use twilight_model::id::{marker::ApplicationMarker, Id};
 
 use crate::{
-    layers::twilight_client_provider::{TwilightClientProviderLayer, TwilightClientState},
+    layers::provide_cloned_state::ClonedStateProviderLayer,
     payloads::{DiscordClientAction, DiscordClientActionResponse, MessagePayload},
 };
+
+/// The shared state required to make requests to Discord using
+/// [`twilight_http::Client`].
+/// This intentionally does **not** implement Clone. There should
+/// only be one client in existence at a time. All its methods
+/// are accessible through &Client so this should be wrapped in
+/// an Arc to be used.
+#[derive(Debug)]
+pub struct TwilightClientState {
+    /// The client itself
+    pub twilight_client: twilight_http::Client,
+    /// The application Id. Used for interaction endpoints.
+    pub application_id: Id<ApplicationMarker>,
+}
 
 /// Wrapper around two very similar validation errors from [twilight_validate].
 #[derive(Debug, Error)]
@@ -193,9 +207,9 @@ pub fn twilight_service(
     Error = TwilightServiceError,
 > {
     ServiceBuilder::new()
-        .layer(TwilightClientProviderLayer::new(
+        .layer(ClonedStateProviderLayer::with_arc(TwilightClientState {
             twilight_client,
             application_id,
-        ))
+        }))
         .service_fn(twilight_service_fn)
 }

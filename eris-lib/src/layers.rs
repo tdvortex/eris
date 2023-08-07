@@ -15,6 +15,3 @@ pub mod deserialize_json;
 /// [`twilight_model::application::interaction::Interaction`]s before passing the [`http::Request`]
 /// on to additional [`tower::Service`]s.
 pub mod verify_signature;
-
-/// A [`tower::Layer`] which provides [TwilightClientState] to a [tower::Service].
-pub mod twilight_client_provider;
