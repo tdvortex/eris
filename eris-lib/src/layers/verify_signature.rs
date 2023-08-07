@@ -61,40 +61,46 @@ async fn verify_discord_signature_fn(
     Ok(Some(request))
 }
 
-fn verify_discord_signature_service() -> impl Service<
-    (ed25519_dalek::PublicKey, Request<Bytes>),
-    Response = Option<Request<Bytes>>,
-    Error = Infallible,
-> {
-    service_fn(|(public_key, request)| verify_discord_signature_fn(public_key, request))
-}
-
 fn verify_discord_signature_layer_fn<S>(
     mut service: S,
 ) -> impl Service<
     (ed25519_dalek::PublicKey, Request<Bytes>),
     Response = (StatusCode, JsonValue),
     Error = S::Error,
->
+> + Clone
 where
     S: Service<Request<Bytes>, Response = (StatusCode, JsonValue)> + Clone,
     S::Error: From<Infallible>,
 {
-    verify_discord_signature_service().then(|res_opt_request| async move {
-        match res_opt_request {
-            Ok(Some(request)) => service.call(request).await,
-            Ok(None) => Ok((
-                StatusCode::UNAUTHORIZED,
-                json!({
-                    "error": "invalid signature"
-                }),
-            )),
-            Err(_infallible) => unreachable!(),
-        }
-    })
+    service_fn(|(public_key, request)| verify_discord_signature_fn(public_key, request)).then(
+        |res_opt_request| async move {
+            match res_opt_request {
+                Ok(Some(request)) => service.call(request).await,
+                Ok(None) => Ok((
+                    StatusCode::UNAUTHORIZED,
+                    json!({
+                        "error": "invalid signature"
+                    }),
+                )),
+                Err(_infallible) => unreachable!(),
+            }
+        },
+    )
 }
 
-pub fn verify_discord_signature_layer<S>(public_key: ed25519_dalek::PublicKey) -> impl Layer<S>
+/// A layer which short-circuits and returns 401 UNAUTHORIZED if the request
+/// does not have a valid Discord signature for the timestamp and bytes of
+/// the message; otherwise, passes the request on unmodified.
+/// Requires that the inner service returns a (StatusCode, JsonValue) so that
+/// the short-circuiting produces the same result type, and also that the
+/// inner service error implement From<Infallible> (which can be accomplished
+/// with the unreachable! macro.
+pub fn verify_discord_signature_layer<S>(
+    public_key: ed25519_dalek::PublicKey,
+) -> impl Layer<
+    S,
+    Service = impl Service<Request<Bytes>, Response = (StatusCode, JsonValue), Error = S::Error> + Clone,
+>
 where
     S: Service<Request<Bytes>, Response = (StatusCode, JsonValue)> + Clone,
     S::Error: From<Infallible>,

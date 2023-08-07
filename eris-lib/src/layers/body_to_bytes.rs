@@ -7,14 +7,15 @@ use tower::{service_fn, Service, ServiceExt};
 
 /// An error which might be returned by the the body-to-bytes service.
 #[derive(Debug, Error)]
-pub enum BodyToBytesServiceError<X, I>
+pub enum BodyToBytesServiceError<B, I>
 where
-    X: Debug + Display,
+    B: http_body::Body,
+    B::Error: Debug + Display,
     I: Debug + Display,
 {
     /// An error when trying to convert the request body into a Bytes object.
     #[error("Error attempting to convert into bytes: {0}")]
-    ToBytesError(X),
+    ToBytesError(B::Error),
     /// An error returned by the inner service (after a successful Bytes conversion).
     #[error("Error in the inner service: {0}")]
     InnerError(I),
@@ -33,7 +34,7 @@ where
 /// Request<Bytes> into one that takes Request<B: Body>.
 pub fn body_to_bytes_layer_fn<B, S>(
     mut service: S,
-) -> impl Service<Request<B>, Response = S::Response, Error = BodyToBytesServiceError<B::Error, S::Error>>
+) -> impl Service<Request<B>, Response = S::Response, Error = BodyToBytesServiceError<B, S::Error>> + Clone
 where
     B: http_body::Body,
     S: Service<Request<Bytes>> + Clone,

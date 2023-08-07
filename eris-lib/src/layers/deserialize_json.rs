@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display};
+use std::{fmt::{Debug, Display}, convert::Infallible};
 
 use futures_util::future::ready;
 use http::Request;
@@ -19,6 +19,13 @@ pub enum JsonDeserializationServiceError<E: Debug + Display> {
     InnerError(E),
 }
 
+impl<E: Debug + Display> From<Infallible> for JsonDeserializationServiceError<E> {
+    fn from(_infallible: Infallible) -> Self {
+        unreachable!()
+    }
+}
+
+
 fn deserialize_json<T>(request: Request<Bytes>) -> Result<Request<T>, serde_json::Error>
 where
     T: DeserializeOwned,
@@ -28,9 +35,9 @@ where
     Ok(Request::from_parts(parts, payload))
 }
 
-/// A function which can be used with [tower::layer::layer_fn] to convert a 
+/// A function which can be used with [tower::layer::layer_fn] to convert a
 /// Service taking Request<T> as input to one that takes Request<Bytes>.
-pub async fn deserialize_json_layer_fn<S, T>(
+pub fn deserialize_json_layer_fn<S, T>(
     mut service: S,
 ) -> impl Service<
     Request<Bytes>,
@@ -49,15 +56,14 @@ where
         )
     })
     .then(|result_request| async move {
-        match result_request {
-            Ok(request) => match service.ready().await {
-                Ok(ready_service) => match ready_service.call(request).await {
-                    Ok(response) => Ok(response),
-                    Err(e) => Err(JsonDeserializationServiceError::InnerError(e)),
-                },
-                Err(e) => Err(JsonDeserializationServiceError::InnerError(e)),
-            },
-            Err(e) => Err(e),
-        }
+        let request = result_request?;
+
+        service
+            .ready()
+            .await
+            .map_err(JsonDeserializationServiceError::InnerError)?
+            .call(request)
+            .await
+            .map_err(JsonDeserializationServiceError::InnerError)
     })
 }
