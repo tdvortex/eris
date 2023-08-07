@@ -205,7 +205,8 @@ pub fn twilight_service(
     DiscordClientAction,
     Response = Option<DiscordClientActionResponse>,
     Error = TwilightServiceError,
-> {
+> + Clone
+{
     ServiceBuilder::new()
         .layer(ClonedStateProviderLayer::with_arc(TwilightClientState {
             twilight_client,

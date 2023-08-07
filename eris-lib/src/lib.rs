@@ -13,7 +13,5 @@ pub mod layers;
 /// [`tower::Service]s that can be used to implement binaries.
 pub mod services;
 
-// pub mod experiment;
-
 /// [serde] compatible payloads for queue services.
 pub mod payloads;
