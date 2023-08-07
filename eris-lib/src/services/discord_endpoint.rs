@@ -1,10 +1,7 @@
-use std::{
-    convert::Infallible,
-    fmt::{Debug, Display},
-};
+use std::fmt::{Debug, Display};
 
 use http::{Request, StatusCode};
-use serde_json::{Value as JsonValue, json};
+use serde_json::{json, Value as JsonValue};
 use thiserror::Error;
 use tower::{Service, ServiceBuilder, ServiceExt};
 use twilight_model::application::interaction::Interaction;
@@ -77,18 +74,6 @@ where
     DiscordEndpointServerError(#[from] DiscordEndpointServerError<Q>),
 }
 
-impl<B, Q> From<Infallible> for DiscordEndpointError<B, Q>
-where
-    B: http_body::Body,
-    B::Error: Debug + Display,
-    Q: Service<DiscordServerAction, Response = ()>,
-    Q::Error: Debug + Display,
-{
-    fn from(_: Infallible) -> Self {
-        unreachable!()
-    }
-}
-
 /// A service which receives an HTTP request and returns a reply in the form of
 /// a (StatusCode, JsonValue) pair.
 pub fn discord_endpoint_service<B, Q>(
@@ -143,25 +128,38 @@ where
         .map_result(|response_result| match response_result {
             Ok(response) => Ok(response),
             Err(DiscordEndpointError::DiscordEndpointClientError(e)) => match e {
-                DiscordEndpointClientError::ToBytesError(_) => Ok((StatusCode::BAD_REQUEST, json!({"error": "invalid request body"}))),
+                DiscordEndpointClientError::ToBytesError(_) => Ok((
+                    StatusCode::BAD_REQUEST,
+                    json!({"error": "invalid request body"}),
+                )),
                 DiscordEndpointClientError::DiscordSignatureVerificationError(e) => match e {
                     DiscordSignatureVerificationFailure::MissingHeader(header_name) => {
                         let error = format!("missing header: {header_name}");
-                        Ok((StatusCode::UNAUTHORIZED, json!({
-                            "error": error
-                        })))
+                        Ok((
+                            StatusCode::UNAUTHORIZED,
+                            json!({
+                                "error": error
+                            }),
+                        ))
                     }
-                    DiscordSignatureVerificationFailure::BadFormat(error) => {
-                        Ok((StatusCode::UNAUTHORIZED, json!({
+                    DiscordSignatureVerificationFailure::BadFormat(error) => Ok((
+                        StatusCode::UNAUTHORIZED,
+                        json!({
                             "error": error
-                        })))
-                    }
-                    DiscordSignatureVerificationFailure::InvalidSignature => Ok((StatusCode::UNAUTHORIZED, json!({
-                        "error": "invalid signature"
-                    }))),
-                }
-                DiscordEndpointClientError::DeserializationError(_) => Ok((StatusCode::BAD_REQUEST, json!({"error": "could not interpret interaction"}))),
-            }
+                        }),
+                    )),
+                    DiscordSignatureVerificationFailure::InvalidSignature => Ok((
+                        StatusCode::UNAUTHORIZED,
+                        json!({
+                            "error": "invalid signature"
+                        }),
+                    )),
+                },
+                DiscordEndpointClientError::DeserializationError(_) => Ok((
+                    StatusCode::BAD_REQUEST,
+                    json!({"error": "could not interpret interaction"}),
+                )),
+            },
             Err(DiscordEndpointError::DiscordEndpointServerError(_)) => todo!(),
         })
 }
