@@ -1,13 +1,48 @@
-use std::convert::Infallible;
+use std::{
+    convert::Infallible,
+    fmt::{Debug, Display},
+};
 
 use axum::RequestPartsExt;
 use ed25519_dalek::Verifier;
-use http::{HeaderMap, Request, StatusCode};
+use http::{HeaderMap, Request};
 use hyper::body::Bytes;
-use serde_json::{json, Value as JsonValue};
+use thiserror::Error;
 use tower::{layer::layer_fn, service_fn, Layer, Service, ServiceBuilder, ServiceExt};
 
 use super::provide_cloned_state::ClonedStateProviderLayer;
+
+/// A reason for the signature validation failure
+#[derive(Debug, Error)]
+pub enum DiscordSignatureVerificationFailure {
+    /// Missing a required header
+    #[error("Missing header: {0}")]
+    MissingHeader(&'static str),
+    /// Header is present but improperly formatted
+    #[error("Bad formatting: {0}")]
+    BadFormat(&'static str),
+    /// Signature is present, but cannot be used to validate request
+    #[error("InvalidSignature")]
+    InvalidSignature,
+}
+
+impl From<Infallible> for DiscordSignatureVerificationFailure {
+    fn from(_infallible: Infallible) -> Self {
+        unreachable!()
+    }
+}
+
+/// An error from the DiscordSignatureVerificationLayer, possibly
+/// passed up from an inner service
+#[derive(Debug, Error)]
+pub enum DiscordSignatureVerificationLayerError<E: Debug + Display> {
+    /// Signature verification failed
+    #[error("{0}")]
+    DiscordSignatureVerificationFailure(#[from] DiscordSignatureVerificationFailure),
+    /// An error from the inner service
+    #[error("{0}")]
+    InnerError(E),
+}
 
 async fn verify_discord_signature(
     public_key: ed25519_dalek::PublicKey,
@@ -21,69 +56,73 @@ async fn verify_discord_signature(
     public_key.verify(&vec, signature).is_ok()
 }
 
-fn get_signature(headers: &HeaderMap) -> Option<ed25519_dalek::Signature> {
-    let header_value = headers.get("X-Signature-Ed25519")?;
-    let header_str = header_value.to_str().ok()?;
-    let header_bytes = hex::decode(header_str).ok()?;
-    let signature = ed25519_dalek::Signature::from_bytes(&header_bytes).ok()?;
+fn get_signature(
+    headers: &HeaderMap,
+) -> Result<ed25519_dalek::Signature, DiscordSignatureVerificationFailure> {
+    let header_value = headers.get("X-Signature-Ed25519").ok_or(
+        DiscordSignatureVerificationFailure::MissingHeader("X-Signature-Ed25519"),
+    )?;
+    let header_str = header_value.to_str().map_err(|_| {
+        DiscordSignatureVerificationFailure::BadFormat("header must be UTF-8 encoded")
+    })?;
+    let header_bytes = hex::decode(header_str).map_err(|_| {
+        DiscordSignatureVerificationFailure::BadFormat("signature must be in hex format")
+    })?;
+    let signature = ed25519_dalek::Signature::from_bytes(&header_bytes)
+        .map_err(|_| DiscordSignatureVerificationFailure::InvalidSignature)?;
 
-    Some(signature)
+    Ok(signature)
 }
 
-fn get_timestamp_bytes(headers: &HeaderMap) -> Option<&[u8]> {
+fn get_timestamp_bytes(headers: &HeaderMap) -> Result<&[u8], DiscordSignatureVerificationFailure> {
     headers
         .get("X-Signature-Timestamp")
         .map(|header_value| header_value.as_bytes())
+        .ok_or(DiscordSignatureVerificationFailure::MissingHeader(
+            "X-Signature-Timestamp",
+        ))
 }
 
 async fn verify_discord_signature_fn(
     public_key: ed25519_dalek::PublicKey,
     request: Request<Bytes>,
-) -> Result<Option<Request<Bytes>>, Infallible> {
+) -> Result<Request<Bytes>, DiscordSignatureVerificationFailure> {
     let (mut parts, bytes) = request.into_parts();
 
     let headers = parts.extract().await?;
-
-    let Some(signature) = get_signature(&headers) else {
-        return Ok(None);
-    };
-
-    let Some(timestamp_bytes) = get_timestamp_bytes(&headers) else {
-        return Ok(None);
-    };
+    let signature = get_signature(&headers)?;
+    let timestamp_bytes = get_timestamp_bytes(&headers)?;
 
     if !verify_discord_signature(public_key, &signature, timestamp_bytes, &bytes).await {
-        return Ok(None);
+        return Err(DiscordSignatureVerificationFailure::InvalidSignature);
     }
 
     parts.headers = headers;
     let request = Request::from_parts(parts, bytes);
-    Ok(Some(request))
+    Ok(request)
 }
 
 fn verify_discord_signature_layer_fn<S>(
     mut service: S,
 ) -> impl Service<
     (ed25519_dalek::PublicKey, Request<Bytes>),
-    Response = (StatusCode, JsonValue),
-    Error = S::Error,
+    Response = S::Response,
+    Error = DiscordSignatureVerificationLayerError<S::Error>,
 > + Clone
 where
-    S: Service<Request<Bytes>, Response = (StatusCode, JsonValue)> + Clone,
-    S::Error: From<Infallible>,
+    S: Service<Request<Bytes>> + Clone,
+    S::Error: Debug + Display
 {
     service_fn(|(public_key, request)| verify_discord_signature_fn(public_key, request)).then(
-        |res_opt_request| async move {
-            match res_opt_request {
-                Ok(Some(request)) => service.call(request).await,
-                Ok(None) => Ok((
-                    StatusCode::UNAUTHORIZED,
-                    json!({
-                        "error": "invalid signature"
-                    }),
-                )),
-                Err(_infallible) => unreachable!(),
-            }
+        |res_request| async move {
+            let request = res_request?;
+            service
+                .ready()
+                .await
+                .map_err(DiscordSignatureVerificationLayerError::InnerError)?
+                .call(request)
+                .await
+                .map_err(DiscordSignatureVerificationLayerError::InnerError)
         },
     )
 }
@@ -99,11 +138,15 @@ pub fn verify_discord_signature_layer<S>(
     public_key: ed25519_dalek::PublicKey,
 ) -> impl Layer<
     S,
-    Service = impl Service<Request<Bytes>, Response = (StatusCode, JsonValue), Error = S::Error> + Clone,
+    Service = impl Service<
+        Request<Bytes>,
+        Response = S::Response,
+        Error = DiscordSignatureVerificationLayerError<S::Error>,
+    > + Clone,
 >
 where
-    S: Service<Request<Bytes>, Response = (StatusCode, JsonValue)> + Clone,
-    S::Error: From<Infallible>,
+    S: Service<Request<Bytes>> + Clone,
+    S::Error: Debug + Display,
 {
     layer_fn(move |service: S| {
         ServiceBuilder::new()

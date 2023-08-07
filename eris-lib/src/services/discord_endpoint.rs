@@ -13,7 +13,10 @@ use crate::{
     layers::{
         body_to_bytes::{body_to_bytes_layer_fn, BodyToBytesServiceError},
         deserialize_json::{deserialize_json_layer_fn, JsonDeserializationServiceError},
-        verify_signature::verify_discord_signature_layer,
+        verify_signature::{
+            verify_discord_signature_layer, DiscordSignatureVerificationFailure,
+            DiscordSignatureVerificationLayerError,
+        },
     },
     payloads::DiscordServerAction,
 };
@@ -29,6 +32,12 @@ where
     Q: Service<DiscordServerAction, Response = ()>,
     Q::Error: Debug + Display,
 {
+    /// Error extracting Bytes from request body
+    #[error("Error extracting Bytes from request body: {0}")]
+    ToBytesError(B::Error),
+    /// Error validating Discord signature
+    #[error("Error validating Discord signature")]
+    DiscordSignatureVerificationError(#[from] DiscordSignatureVerificationFailure),
     /// Error deserializing Interaction from body
     #[error("Error deserializing Interaction from request body: {0}")]
     DeserializationError(serde_json::Error),
@@ -38,9 +47,6 @@ where
     /// Error serializing response
     #[error("Error trying to serialize a response: {0}")]
     SerializationError(serde_json::Error),
-    /// Error
-    #[error("Error extracting Bytes from request body: {0}")]
-    ToBytesError(B::Error),
 }
 
 impl<B, Q> From<Infallible> for DiscordEndpointError<B, Q>
@@ -56,7 +62,7 @@ where
 }
 
 /// A service which receives an HTTP request and returns a reply in the form of
-/// a (StatusCode, JsonValue) pair. 
+/// a (StatusCode, JsonValue) pair.
 pub fn discord_endpoint_service<B, Q>(
     public_key: ed25519_dalek::PublicKey,
     server_action_queue_service: Q,
@@ -79,16 +85,21 @@ where
             match e {
                 BodyToBytesServiceError::ToBytesError(e) => DiscordEndpointError::ToBytesError(e),
                 BodyToBytesServiceError::InnerError(e) => match e {
-                    JsonDeserializationServiceError::JsonDeserialization(e) => {
-                        DiscordEndpointError::DeserializationError(e)
-                    }
-                    JsonDeserializationServiceError::InnerError(e) => match e {
-                        InteractionResponseError::SerializationError(e) => {
-                            DiscordEndpointError::SerializationError(e)
+                    DiscordSignatureVerificationLayerError::DiscordSignatureVerificationFailure(
+                        e,
+                    ) => DiscordEndpointError::DiscordSignatureVerificationError(e),
+                    DiscordSignatureVerificationLayerError::InnerError(e) => match e {
+                        JsonDeserializationServiceError::JsonDeserialization(e) => {
+                            DiscordEndpointError::DeserializationError(e)
                         }
-                        InteractionResponseError::QueueServiceError(e) => {
-                            DiscordEndpointError::QueueServiceError(e)
-                        }
+                        JsonDeserializationServiceError::InnerError(e) => match e {
+                            InteractionResponseError::SerializationError(e) => {
+                                DiscordEndpointError::SerializationError(e)
+                            }
+                            InteractionResponseError::QueueServiceError(e) => {
+                                DiscordEndpointError::QueueServiceError(e)
+                            }
+                        },
                     },
                 },
             }
