@@ -6,7 +6,8 @@ pub mod discord_endpoint;
 /// and queues any responses.
 pub mod discord_client_action;
 
-
+/// A service which sends requests into a [tokio::sync::mpsc::unbounded_channel].
+pub mod in_memory_queue;
 
 /// A[tower::Service] which processes [DiscordClientAction]s and
 /// sometimes returns a [DiscordClientActionResponse] for additional
