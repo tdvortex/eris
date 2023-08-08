@@ -38,7 +38,7 @@ pub enum InteractionResponseError<Q: Debug + Display> {
     QueueServiceError(Q),
 }
 
-async fn response_to_interaction<Q>(
+async fn respond_to_interaction<Q>(
     (mut queue_service, interaction): (Q, Interaction),
 ) -> Result<(StatusCode, JsonValue), InteractionResponseError<Q::Error>>
 where
@@ -63,7 +63,7 @@ where
 
 /// Returns a service which takes an incoming Interaction, queues it, and
 /// responds as quickly as possible with 200 OK and DEFERRED_CHANNEL_MESSAGE.
-pub fn interaction_response_service<Q>(
+pub fn respond_to_interaction_layer_fn<Q>(
     queue_service: Q,
 ) -> impl Service<
     Interaction,
@@ -77,5 +77,5 @@ where
 {
     ServiceBuilder::new()
         .layer(ClonedStateProviderLayer::new(queue_service))
-        .service_fn(response_to_interaction)
+        .service_fn(respond_to_interaction)
 }

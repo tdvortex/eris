@@ -11,6 +11,13 @@ pub mod provide_cloned_state;
 /// with a payload of [hyper::body::Bytes].
 pub mod deserialize_json;
 
+/// A [`tower::Layer`] which converts a [tower::Service] that takes
+/// 
+/// 
+///  responds to an Interaction by queuing it and responding
+/// with DEFERRED_CHANNEL_MESSAGE as quickly as possible.
+pub mod respond_to_interaction;
+
 /// Authentication [`tower::Layer`] to verify Discord's [`ed25519_dalek::Signature`] on incoming
 /// [`twilight_model::application::interaction::Interaction`]s before passing the [`http::Request`]
 /// on to additional [`tower::Service`]s.

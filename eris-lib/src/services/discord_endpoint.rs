@@ -13,12 +13,10 @@ use crate::{
         verify_signature::{
             verify_discord_signature_layer, DiscordSignatureVerificationFailure,
             DiscordSignatureVerificationLayerError,
-        },
+        }, respond_to_interaction::{respond_to_interaction_layer_fn, InteractionResponseError},
     },
     payloads::DiscordServerAction,
 };
-
-use super::interaction_response::{interaction_response_service, InteractionResponseError};
 
 /// An error while trying to parse or validate the request.
 /// Triggers a 4xx response code and a JSON explanation.
@@ -95,7 +93,8 @@ where
         .layer(verify_discord_signature_layer(public_key))
         .layer_fn(deserialize_json_layer_fn)
         .map_request(|request: Request<Interaction>| request.into_body())
-        .service(interaction_response_service(server_action_queue_service))
+        .layer_fn(respond_to_interaction_layer_fn)
+        .service(server_action_queue_service)
         .map_err(|e| -> DiscordEndpointError<B, Q> {
             match e {
                 BodyToBytesServiceError::ToBytesError(e) => {
