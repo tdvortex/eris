@@ -6,6 +6,9 @@ use tower::Service;
 /// [tokio::sync::mpsc::unbounded_channel] send hook.
 /// This service is Clone, so multiple services can insert into
 /// this queue at once. 
+/// This service is fire-and-forget; it provides no mechanism
+/// to recover from errors on the other end. It can only
+/// detect if it is attempting to send to a closed channel.
 #[derive(Debug, Clone)]
 pub struct InMemoryQueueService<T>(UnboundedSender<T>);
 

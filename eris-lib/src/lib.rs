@@ -13,5 +13,9 @@ pub mod layers;
 /// [`tower::Service]s that can be used to implement binaries.
 pub mod services;
 
+/// Utilities that can be used for scheduling service execution that are not
+/// themselves Services.
+pub mod scheduling;
+
 /// [serde] compatible payloads for queue services.
 pub mod payloads;
