@@ -1,5 +1,7 @@
+use std::ops::{DerefMut, Deref};
+
 use futures_util::future::{ready, Ready};
-use tokio::sync::mpsc::{error::SendError, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{error::SendError, UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tower::{Service, ServiceExt};
 
 /// An in-memory background task queue service, wrapping a
@@ -12,9 +14,11 @@ use tower::{Service, ServiceExt};
 #[derive(Debug, Clone)]
 pub struct InMemoryQueueService<T>(UnboundedSender<T>);
 
-impl<T> From<UnboundedSender<T>> for InMemoryQueueService<T> {
-    fn from(value: UnboundedSender<T>) -> Self {
-        Self(value)
+impl<T> Deref for InMemoryQueueService<T> {
+    type Target = UnboundedSender<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
@@ -33,13 +37,38 @@ impl<T> Service<T> for InMemoryQueueService<T> {
     }
 
     fn call(&mut self, req: T) -> Self::Future {
-        ready(self.0.send(req))
+        ready(self.send(req))
     }
+}
+
+/// The receiving end of the in-memory queue. There can only be
+/// one such subscription, so it is not Clone.
+#[derive(Debug)]
+pub struct InMemoryQueueSubscription<T>(UnboundedReceiver<T>);
+
+impl<T> Deref for InMemoryQueueSubscription<T> {
+    type Target = UnboundedReceiver<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for InMemoryQueueSubscription<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+/// Create an in-memory queue service and a subscription handle to it.
+pub fn in_memory_queue<T>() -> (InMemoryQueueService<T>, InMemoryQueueSubscription<T>) {
+    let (tx, rx) = unbounded_channel();
+    (InMemoryQueueService(tx), InMemoryQueueSubscription(rx))
 }
 
 /// Start a service in the background which responds to events in the in-memory 
 /// queue
-pub async fn subscribe_to_queue<S, T>(mut service: S, mut rx: UnboundedReceiver<T>)
+pub async fn subscribe_to_queue<S, T>(mut service: S, mut subscription: InMemoryQueueSubscription<T>)
 where
     S: Service<T, Response = ()> + Send + 'static,
     S::Error: std::fmt::Display + Send,
@@ -47,7 +76,7 @@ where
     T: Send + 'static,
 {
     tokio::spawn(async move {
-        while let Some(t) = rx.recv().await {
+        while let Some(t) = subscription.recv().await {
             match service.ready().await {
                 Ok(service) => {
                     if let Err(e) = service.call(t).await {
