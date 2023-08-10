@@ -10,6 +10,9 @@ pub mod deploy;
 /// [`tower::Layer`]s that can be used to assemble other [`tower::Service`]s.
 pub mod layers;
 
+/// The data models used in various parts of the system
+pub mod model;
+
 /// [`tower::Service]s that can be used to implement binaries.
 pub mod services;
 
