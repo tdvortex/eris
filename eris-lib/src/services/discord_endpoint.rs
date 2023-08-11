@@ -10,10 +10,11 @@ use crate::{
     layers::{
         body_to_bytes::{body_to_bytes_layer_fn, BodyToBytesServiceError},
         deserialize_json::{deserialize_json_layer_fn, JsonDeserializationServiceError},
+        respond_to_interaction::{respond_to_interaction_layer_fn, InteractionResponseError},
         verify_signature::{
             verify_discord_signature_layer, DiscordSignatureVerificationFailure,
             DiscordSignatureVerificationLayerError,
-        }, respond_to_interaction::{respond_to_interaction_layer_fn, InteractionResponseError},
+        },
     },
     payloads::DiscordServerAction,
 };
@@ -103,7 +104,7 @@ where
             let Err(e) = result_response else {
                 return result_response;
             };
-            
+
             match e {
                 DiscordEndpointError::ToBytesError(_) => {
                     Ok(StatusCode::BAD_REQUEST.into_response())
@@ -126,7 +127,7 @@ where
                 DiscordEndpointError::QueueServiceError(_) => Err(e),
                 DiscordEndpointError::SerializationError(e) => {
                     tracing::error!("Unable to serialize a response: {e}");
-                    Ok(StatusCode::INTERNAL_SERVER_ERROR.into_response()) 
+                    Ok(StatusCode::INTERNAL_SERVER_ERROR.into_response())
                 }
             }
         })

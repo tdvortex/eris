@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display};
 
+use axum::response::IntoResponse;
 use http::StatusCode;
 use serde_json::Value as JsonValue;
 use thiserror::Error;
@@ -8,11 +9,9 @@ use twilight_model::{
     application::interaction::{Interaction, InteractionType},
     http::interaction::{InteractionResponse, InteractionResponseType},
 };
-use axum::response::IntoResponse;
 
 use crate::{
-    layers::provide_cloned_state::ClonedStateProviderLayer,
-    payloads::DiscordServerAction,
+    layers::provide_cloned_state::ClonedStateProviderLayer, payloads::DiscordServerAction,
 };
 
 /// The response to a PING request.
@@ -54,10 +53,10 @@ where
     queue_service
         .ready()
         .await
-        .map_err(|e| InteractionResponseError::QueueServiceError(e))?
+        .map_err(InteractionResponseError::QueueServiceError)?
         .call(DiscordServerAction::from(interaction))
         .await
-        .map_err(|e| InteractionResponseError::QueueServiceError(e))?;
+        .map_err(InteractionResponseError::QueueServiceError)?;
 
     Ok((StatusCode::OK, serde_json::to_value(DEFER)?))
 }

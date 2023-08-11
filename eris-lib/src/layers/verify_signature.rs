@@ -115,12 +115,10 @@ fn verify_discord_signature(
     request: Request<Bytes>,
 ) -> Result<Request<Bytes>, DiscordSignatureVerificationFailure> {
     let (parts, bytes) = request.into_parts();
-    let public_key = parts
+    let public_key = *parts
         .extensions
         .get::<DiscordPublicKey>()
-        .as_deref()
-        .ok_or(DiscordSignatureVerificationFailure::MissingPublicKey)?
-        .clone();
+        .ok_or(DiscordSignatureVerificationFailure::MissingPublicKey)?;
     let signature = get_signature(&parts.headers)?;
     let timestamp_bytes = get_timestamp_bytes(&parts.headers)?;
 
@@ -132,8 +130,9 @@ fn verify_discord_signature(
     Ok(request)
 }
 #[derive(Clone)]
-struct DiscordSignatureVerificationService<S> 
-where S: Clone,
+struct DiscordSignatureVerificationService<S>
+where
+    S: Clone,
 {
     inner: S,
 }
@@ -185,18 +184,17 @@ pub fn verify_discord_signature_layer<S>(
 where
     S: Service<Request<Bytes>> + Clone,
     S::Response: IntoResponse,
-    S::Error: Debug + Display
+    S::Error: Debug + Display,
 {
     layer_fn(move |service: S| {
         ServiceBuilder::new()
-        .layer(tower_http::add_extension::AddExtensionLayer::new(public_key))
-        .service(
-            DiscordSignatureVerificationService {
+            .layer(tower_http::add_extension::AddExtensionLayer::new(
+                public_key,
+            ))
+            .service(DiscordSignatureVerificationService {
                 inner: service
                     .map_err(DiscordSignatureVerificationLayerError::InnerError)
                     .map_response(IntoResponse::into_response),
-            }
-        )
+            })
     })
-
 }

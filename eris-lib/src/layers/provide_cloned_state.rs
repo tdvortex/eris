@@ -1,4 +1,4 @@
-use std::{sync::Arc, marker::PhantomData};
+use std::{marker::PhantomData, sync::Arc};
 
 use tower::{Layer, Service};
 
@@ -6,18 +6,23 @@ use tower::{Layer, Service};
 /// to a service processing requests of type (T, R), reducing it
 /// to a service which takes requests of type R alone.
 pub struct ClonedStateProviderLayer<T, R>
-where T: Clone,
+where
+    T: Clone,
 {
     state: T,
     _inner_request: PhantomData<R>,
 }
 
-impl<T, R> ClonedStateProviderLayer<T, R> 
-where T: Clone
+impl<T, R> ClonedStateProviderLayer<T, R>
+where
+    T: Clone,
 {
     /// Creates a new ClonedStateProviderLayer with a clonable T
     pub fn new(state: T) -> Self {
-        Self { state, _inner_request: PhantomData }
+        Self {
+            state,
+            _inner_request: PhantomData,
+        }
     }
 }
 
@@ -27,12 +32,17 @@ impl<T, R> ClonedStateProviderLayer<Arc<T>, R> {
     /// to clone, at the cost of only implementing Deref<T> instead of Deref<Mut>
     /// or Into<T>.
     pub fn with_arc(state: T) -> Self {
-        Self { state: Arc::new(state), _inner_request: PhantomData }
+        Self {
+            state: Arc::new(state),
+            _inner_request: PhantomData,
+        }
     }
 }
 
-impl<T, S, R> Layer<S> for ClonedStateProviderLayer<T, R> 
-where T: Clone, S: Service<(T, R)>
+impl<T, S, R> Layer<S> for ClonedStateProviderLayer<T, R>
+where
+    T: Clone,
+    S: Service<(T, R)>,
 {
     type Service = CloneStateProviderService<T, S, R>;
 
@@ -47,15 +57,17 @@ where T: Clone, S: Service<(T, R)>
 
 /// A service which wraps a Service<(T, R)>, making it a
 /// Service<R> by cloning T for every request.
-pub struct CloneStateProviderService<T, S, R> 
-where T: Clone, S: Service<(T, R)>
+pub struct CloneStateProviderService<T, S, R>
+where
+    T: Clone,
+    S: Service<(T, R)>,
 {
     state: T,
     inner: S,
     _inner_request: PhantomData<R>,
 }
 
-impl<T, S, R> Service<R> for CloneStateProviderService<T, S, R> 
+impl<T, S, R> Service<R> for CloneStateProviderService<T, S, R>
 where
     S: Service<(T, R)>,
     T: Clone,
@@ -64,7 +76,10 @@ where
     type Error = S::Error;
     type Future = S::Future;
 
-    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
     }
 
@@ -74,9 +89,15 @@ where
 }
 
 impl<T, S, R> Clone for CloneStateProviderService<T, S, R>
-where T: Clone, S: Service<(T, R)> + Clone
+where
+    T: Clone,
+    S: Service<(T, R)> + Clone,
 {
     fn clone(&self) -> Self {
-        Self { state: self.state.clone(), inner: self.inner.clone(), _inner_request: PhantomData }
+        Self {
+            state: self.state.clone(),
+            inner: self.inner.clone(),
+            _inner_request: PhantomData,
+        }
     }
 }

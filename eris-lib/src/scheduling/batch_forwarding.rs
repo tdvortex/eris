@@ -33,7 +33,7 @@ pub async fn batch_forward<T, TX, RX>(
     // If max_size is 1, we don't need to do anything with timing
     if max_size == 1 {
         while let Some(item) = input.recv().await {
-            if let Err(_) = output.send(vec![item]) {
+            if output.send(vec![item]).is_err() {
                 tracing::warn!("Batch receiver closed handle, batch dropped");
                 return;
             }
@@ -66,7 +66,7 @@ pub async fn batch_forward<T, TX, RX>(
             }
         }
 
-        if let Err(_) = output.send(batch) {
+        if output.send(batch).is_err() {
             tracing::warn!("Batch receiver closed handle, batch dropped");
             return;
         }

@@ -1,7 +1,7 @@
-use std::ops::{DerefMut, Deref};
+use std::ops::{Deref, DerefMut};
 
 use futures_util::future::{ready, Ready};
-use tokio::sync::mpsc::{error::SendError, UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio::sync::mpsc::{error::SendError, unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tower::{Service, ServiceExt};
 
 /// An in-memory background task queue service, wrapping a
@@ -66,10 +66,12 @@ pub fn in_memory_queue<T>() -> (InMemoryQueueService<T>, InMemoryQueueSubscripti
     (InMemoryQueueService(tx), InMemoryQueueSubscription(rx))
 }
 
-/// Start a service in the background which responds to events in the in-memory 
+/// Start a service in the background which responds to events in the in-memory
 /// queue
-pub async fn subscribe_to_queue<S, T>(mut service: S, mut subscription: InMemoryQueueSubscription<T>)
-where
+pub async fn subscribe_to_queue<S, T>(
+    mut service: S,
+    mut subscription: InMemoryQueueSubscription<T>,
+) where
     S: Service<T, Response = ()> + Send + 'static,
     S::Error: std::fmt::Display + Send,
     S::Future: Send,

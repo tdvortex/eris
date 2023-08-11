@@ -1,4 +1,7 @@
-use std::{fmt::{Debug, Display}, convert::Infallible};
+use std::{
+    convert::Infallible,
+    fmt::{Debug, Display},
+};
 
 use futures_util::future::ready;
 use http::Request;
@@ -24,7 +27,6 @@ impl<E: Debug + Display> From<Infallible> for JsonDeserializationServiceError<E>
         unreachable!()
     }
 }
-
 
 fn deserialize_json<T>(request: Request<Bytes>) -> Result<Request<T>, serde_json::Error>
 where

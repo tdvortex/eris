@@ -14,10 +14,7 @@ use twilight_model::{application::command::Command, id::Id};
 /// Sets all slash commands and message commands globally for the app.
 /// This is the production deployment--it will be available to all users!
 pub async fn set_global_commands(token: impl Display, application_id: NonZeroU64) {
-    let commands: Vec<Command> = slash_commands()
-        .into_iter()
-        .chain(message_commands().into_iter())
-        .collect();
+    let commands: Vec<Command> = slash_commands().chain(message_commands()).collect();
 
     let response = Client::new(format!("Bearer {token}"))
         .interaction(Id::from(application_id))
@@ -49,10 +46,7 @@ pub async fn set_guild_commands(
     application_id: NonZeroU64,
     guild_id: NonZeroU64,
 ) {
-    let commands: Vec<Command> = slash_commands()
-        .into_iter()
-        .chain(message_commands().into_iter())
-        .collect();
+    let commands: Vec<Command> = slash_commands().chain(message_commands()).collect();
 
     let response = Client::new(format!("Bearer {token}"))
         .interaction(Id::from(application_id))
