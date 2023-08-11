@@ -67,7 +67,7 @@ where
         let (callback_tx, callback_rx) = oneshot_channel();
         let backgroud_service_request = BackgroundServiceRequest {
             request,
-            callback_tx,
+            callback_tx: Some(callback_tx),
             timeout_dur: None,
         };
         self.0.send(backgroud_service_request).map_err(
@@ -92,7 +92,7 @@ where
         let (callback_tx, callback_rx) = oneshot_channel();
         let backgroud_service_request = BackgroundServiceRequest {
             request,
-            callback_tx,
+            callback_tx: Some(callback_tx),
             timeout_dur: Some(duration),
         };
         self.0.send(backgroud_service_request).map_err(
@@ -106,11 +106,25 @@ where
             Err(_) => Err(BackgroundServiceError::ResponseNotReceived),
         }
     }
+
+    /// Invoke the background service and don't wait for a response.
+    /// Errors will show up in logs but may not be delivered.
+    pub fn fire_and_forget(&self, request: Req) -> Result<(), SendError<Req>> {
+        let background_service_request = BackgroundServiceRequest {
+            request,
+            callback_tx: None,
+            timeout_dur: None,
+        };
+        self.0.send(background_service_request).map_err(
+            |SendError(background_service_request)| SendError(background_service_request.request),
+        )?;
+        Ok(())
+    }
 }
 
 struct BackgroundServiceRequest<Req, Resp, E> {
     request: Req,
-    callback_tx: OneShotSender<Result<Resp, E>>,
+    callback_tx: Option<OneShotSender<Result<Resp, E>>>,
     timeout_dur: Option<Duration>,
 }
 
@@ -151,13 +165,15 @@ async fn background_service_loop<S, Req>(
             execute_background_service(&mut service, request).await
         };
 
-        if let Err(result_response) = callback_tx.send(callback_response) {
-            match result_response {
-                Ok(_) => {
-                    tracing::debug!("Background service response callback not delivered");
-                }
-                Err(_) => {
-                    tracing::warn!("Background service error callback not delivered");
+        if let Some(callback_tx) = callback_tx {
+            if let Err(result_response) = callback_tx.send(callback_response) {
+                match result_response {
+                    Ok(_) => {
+                        tracing::debug!("Background service response callback not delivered");
+                    }
+                    Err(_) => {
+                        tracing::warn!("Background service error callback not delivered");
+                    }
                 }
             }
         }
