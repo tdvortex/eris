@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display};
 
+use axum::response::IntoResponse;
 use http::{Request, StatusCode};
-use serde_json::{json, Value as JsonValue};
 use thiserror::Error;
 use tower::{Service, ServiceBuilder, ServiceExt};
 use twilight_model::application::interaction::Interaction;
@@ -18,41 +18,6 @@ use crate::{
     payloads::DiscordServerAction,
 };
 
-/// An error while trying to parse or validate the request.
-/// Triggers a 4xx response code and a JSON explanation.
-#[derive(Debug, Error)]
-pub enum DiscordEndpointClientError<B>
-where
-    B: http_body::Body,
-    B::Error: Debug + Display,
-{
-    /// Error extracting Bytes from request body
-    #[error("Error extracting Bytes from request body: {0}")]
-    ToBytesError(B::Error),
-    /// Error validating Discord signature
-    #[error("Error validating Discord signature")]
-    DiscordSignatureVerificationError(#[from] DiscordSignatureVerificationFailure),
-    /// Error deserializing Interaction from body
-    #[error("Error deserializing Interaction from request body: {0}")]
-    DeserializationError(#[from] serde_json::Error),
-}
-
-/// An error trying to service a valid request.
-/// Triggers a 5xx response code and logging the error.
-#[derive(Debug, Error)]
-pub enum DiscordEndpointServerError<Q>
-where
-    Q: Service<DiscordServerAction, Response = ()>,
-    Q::Error: Debug + Display,
-{
-    /// Error queueing a received Interaction
-    #[error("Error queueing a received Interaction: {0}")]
-    QueueServiceError(Q::Error),
-    /// Error serializing response
-    #[error("Error trying to serialize a response: {0}")]
-    SerializationError(#[from] serde_json::Error),
-}
-
 /// An error which might occur with the Discord endpoint.
 /// Triggers either a 4xx response with a JSON payload,
 /// or a 5xx response combined with logging the error using tracing
@@ -64,14 +29,21 @@ where
     Q: Service<DiscordServerAction, Response = ()>,
     Q::Error: Debug + Display,
 {
-    /// An error while trying to parse or validate the request.
-    /// Triggers a 4xx response.
-    #[error("Error interpreting the request: {0}")]
-    DiscordEndpointClientError(#[from] DiscordEndpointClientError<B>),
-    /// An error trying to service a valid request.
-    /// Triggers a 5xx request.
-    #[error("Error handling a valid request: {0}")]
-    DiscordEndpointServerError(#[from] DiscordEndpointServerError<Q>),
+    /// Error extracting Bytes from request body
+    #[error("Error extracting Bytes from request body: {0}")]
+    ToBytesError(B::Error),
+    /// Error validating Discord signature
+    #[error("Error validating Discord signature")]
+    DiscordSignatureVerificationError(#[from] DiscordSignatureVerificationFailure),
+    /// Error deserializing Interaction from body
+    #[error("Error deserializing Interaction from request body: {0}")]
+    JsonDeserializationError(serde_json::Error),
+    /// Error queueing a received Interaction
+    #[error("Error queueing a received Interaction: {0}")]
+    QueueServiceError(Q::Error),
+    /// Error serializing response
+    #[error("Error trying to serialize a response: {0}")]
+    SerializationError(serde_json::Error),
 }
 
 /// A service which receives an HTTP request and returns a reply in the form of
@@ -79,7 +51,7 @@ where
 pub fn discord_endpoint_service<B, Q>(
     public_key: ed25519_dalek::PublicKey,
     server_action_queue_service: Q,
-) -> impl Service<Request<B>, Response = (StatusCode, JsonValue), Error = DiscordEndpointError<B, Q>>
+) -> impl Service<Request<B>, Response = axum::response::Response, Error = DiscordEndpointError<B, Q>>
        + Clone
 where
     B: http_body::Body + Clone,
@@ -95,84 +67,67 @@ where
         .map_request(|request: Request<Interaction>| request.into_body())
         .layer_fn(respond_to_interaction_layer_fn)
         .service(server_action_queue_service)
-        .map_err(|e| -> DiscordEndpointError<B, Q> {
-            match e {
+        .map_response(axum::response::IntoResponse::into_response)
+        .map_err(|e| {
+            let e = match e {
                 BodyToBytesServiceError::ToBytesError(e) => {
-                    DiscordEndpointError::DiscordEndpointClientError(
-                        DiscordEndpointClientError::ToBytesError(e),
-                    )
+                    return DiscordEndpointError::ToBytesError(e);
                 }
-                BodyToBytesServiceError::InnerError(e) => match e {
-                    DiscordSignatureVerificationLayerError::DiscordSignatureVerificationFailure(
-                        e,
-                    ) => DiscordEndpointError::DiscordEndpointClientError(
-                        DiscordEndpointClientError::DiscordSignatureVerificationError(e),
-                    ),
-                    DiscordSignatureVerificationLayerError::InnerError(e) => match e {
-                        JsonDeserializationServiceError::JsonDeserialization(e) => {
-                            DiscordEndpointError::DiscordEndpointClientError(e.into())
-                        }
-                        JsonDeserializationServiceError::InnerError(e) => match e {
-                            InteractionResponseError::SerializationError(e) => {
-                                DiscordEndpointError::DiscordEndpointServerError(e.into())
-                            }
-                            InteractionResponseError::QueueServiceError(e) => {
-                                DiscordEndpointError::DiscordEndpointServerError(
-                                    DiscordEndpointServerError::QueueServiceError(e),
-                                )
-                            }
-                        },
-                    },
-                },
+                BodyToBytesServiceError::InnerError(e) => e,
+            };
+
+            let e = match e {
+                DiscordSignatureVerificationLayerError::DiscordSignatureVerificationFailure(e) => {
+                    return DiscordEndpointError::DiscordSignatureVerificationError(e);
+                }
+                DiscordSignatureVerificationLayerError::InnerError(e) => e,
+            };
+
+            let e = match e {
+                JsonDeserializationServiceError::JsonDeserialization(e) => {
+                    return DiscordEndpointError::JsonDeserializationError(e);
+                }
+                JsonDeserializationServiceError::InnerError(e) => e,
+            };
+
+            match e {
+                InteractionResponseError::SerializationError(e) => {
+                    DiscordEndpointError::SerializationError(e)
+                }
+                InteractionResponseError::QueueServiceError(e) => {
+                    DiscordEndpointError::QueueServiceError(e)
+                }
             }
         })
-        .map_result(|response_result| match response_result {
-            Ok(response) => Ok(response),
-            Err(DiscordEndpointError::DiscordEndpointClientError(e)) => match e {
-                DiscordEndpointClientError::ToBytesError(_) => Ok((
-                    StatusCode::BAD_REQUEST,
-                    json!({"error": "invalid request body"}),
-                )),
-                DiscordEndpointClientError::DiscordSignatureVerificationError(e) => match e {
-                    DiscordSignatureVerificationFailure::MissingHeader(header_name) => {
-                        let error = format!("missing header: {header_name}");
-                        Ok((
-                            StatusCode::UNAUTHORIZED,
-                            json!({
-                                "error": error
-                            }),
-                        ))
+        .map_result(|result_response| {
+            let Err(e) = result_response else {
+                return result_response;
+            };
+            
+            match e {
+                DiscordEndpointError::ToBytesError(_) => {
+                    Ok(StatusCode::BAD_REQUEST.into_response())
+                }
+                DiscordEndpointError::DiscordSignatureVerificationError(e) => match e {
+                    DiscordSignatureVerificationFailure::MissingPublicKey => {
+                        tracing::error!("Discord endpoint service does not have Discord public key middlware");
+                        Ok(StatusCode::INTERNAL_SERVER_ERROR.into_response())
                     }
-                    DiscordSignatureVerificationFailure::BadFormat(error) => Ok((
-                        StatusCode::UNAUTHORIZED,
-                        json!({
-                            "error": error
-                        }),
-                    )),
-                    DiscordSignatureVerificationFailure::InvalidSignature => Ok((
-                        StatusCode::UNAUTHORIZED,
-                        json!({
-                            "error": "invalid signature"
-                        }),
-                    )),
-                },
-                DiscordEndpointClientError::DeserializationError(_) => Ok((
-                    StatusCode::BAD_REQUEST,
-                    json!({"error": "could not interpret interaction"}),
-                )),
-            },
-            Err(DiscordEndpointError::DiscordEndpointServerError(e)) => {
-                match e {
-                    DiscordEndpointServerError::QueueServiceError(e) => {
-                        tracing::error!("server action queue failed: {e}");
+                    DiscordSignatureVerificationFailure::MissingHeader(_)
+                    | DiscordSignatureVerificationFailure::BadFormat(_)
+                    | DiscordSignatureVerificationFailure::InvalidSignature => {
+                        Ok(StatusCode::UNAUTHORIZED.into_response())
                     }
-                    DiscordEndpointServerError::SerializationError(e) => {
-                        tracing::error!("serializing response failed: {e}");
-                    }
-                };
-
-                // Don't tell Discord how we screwed up
-                Ok((StatusCode::BAD_REQUEST, json!({"error": "internal server error"})))
+                }
+                DiscordEndpointError::JsonDeserializationError(_) => {
+                    Ok(StatusCode::BAD_REQUEST.into_response())
+                }
+                // Pass through queue service errors; handling defined by input service
+                DiscordEndpointError::QueueServiceError(_) => Err(e),
+                DiscordEndpointError::SerializationError(e) => {
+                    tracing::error!("Unable to serialize a response: {e}");
+                    Ok(StatusCode::INTERNAL_SERVER_ERROR.into_response()) 
+                }
             }
         })
 }

@@ -4,6 +4,7 @@ pub mod body_to_bytes;
 /// A [`tower::Layer`] which converts a [tower::Service] that takes a service 
 /// taking a request of type (T, R) into one that only takes type R, by cloning
 /// a shared state T and passing it as the first argument.
+/// This is somewhat clunky; when possible [tower_http::add_extension::AddExtensionLayer]
 pub mod provide_cloned_state;
 
 /// A [`tower::Layer`] which converts a [tower::Service] that takes a [http::Request]

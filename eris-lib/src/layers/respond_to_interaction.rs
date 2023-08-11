@@ -8,6 +8,7 @@ use twilight_model::{
     application::interaction::{Interaction, InteractionType},
     http::interaction::{InteractionResponse, InteractionResponseType},
 };
+use axum::response::IntoResponse;
 
 use crate::{
     layers::provide_cloned_state::ClonedStateProviderLayer,
@@ -67,7 +68,7 @@ pub fn respond_to_interaction_layer_fn<Q>(
     queue_service: Q,
 ) -> impl Service<
     Interaction,
-    Response = (StatusCode, JsonValue),
+    Response = impl IntoResponse,
     Error = InteractionResponseError<Q::Error>,
 > + Clone
 where
@@ -78,4 +79,5 @@ where
     ServiceBuilder::new()
         .layer(ClonedStateProviderLayer::new(queue_service))
         .service_fn(respond_to_interaction)
+        .map_response(|(status_code, json)| (status_code, axum::Json(json)))
 }

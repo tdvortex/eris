@@ -1,20 +1,46 @@
 use std::{
     convert::Infallible,
     fmt::{Debug, Display},
+    ops::Deref,
 };
 
-use axum::RequestPartsExt;
+use axum::response::IntoResponse;
 use ed25519_dalek::Verifier;
+use futures_util::{
+    future::{ready, Either, Ready},
+    FutureExt,
+};
 use http::{HeaderMap, Request};
 use hyper::body::Bytes;
 use thiserror::Error;
-use tower::{layer::layer_fn, service_fn, Layer, Service, ServiceBuilder, ServiceExt};
+use tower::{layer::layer_fn, Layer, Service, ServiceBuilder, ServiceExt};
 
-use super::provide_cloned_state::ClonedStateProviderLayer;
+/// Wrapper around an [ed25519_dalek::PublicKey]. This makes the key
+/// immutable once defined, and give an opaque type to be used as
+/// an HTTP extension.
+#[derive(Debug, Clone, Copy)]
+pub struct DiscordPublicKey(ed25519_dalek::PublicKey);
+
+impl Deref for DiscordPublicKey {
+    type Target = ed25519_dalek::PublicKey;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<ed25519_dalek::PublicKey> for DiscordPublicKey {
+    fn from(value: ed25519_dalek::PublicKey) -> Self {
+        Self(value)
+    }
+}
 
 /// A reason for the signature validation failure
 #[derive(Debug, Error)]
 pub enum DiscordSignatureVerificationFailure {
+    /// Expected extension with Discord public key
+    #[error("Missing Discord public key in extensions")]
+    MissingPublicKey,
     /// Missing a required header
     #[error("Missing header: {0}")]
     MissingHeader(&'static str),
@@ -36,6 +62,8 @@ impl From<Infallible> for DiscordSignatureVerificationFailure {
 /// passed up from an inner service
 #[derive(Debug, Error)]
 pub enum DiscordSignatureVerificationLayerError<E: Debug + Display> {
+    /// Missing the public key extension
+
     /// Signature verification failed
     #[error("{0}")]
     DiscordSignatureVerificationFailure(#[from] DiscordSignatureVerificationFailure),
@@ -44,7 +72,7 @@ pub enum DiscordSignatureVerificationLayerError<E: Debug + Display> {
     InnerError(E),
 }
 
-async fn verify_discord_signature(
+fn valid_discord_signature(
     public_key: ed25519_dalek::PublicKey,
     signature: &ed25519_dalek::Signature,
     timestamp_bytes: &[u8],
@@ -83,75 +111,92 @@ fn get_timestamp_bytes(headers: &HeaderMap) -> Result<&[u8], DiscordSignatureVer
         ))
 }
 
-async fn verify_discord_signature_fn(
-    public_key: ed25519_dalek::PublicKey,
+fn verify_discord_signature(
     request: Request<Bytes>,
 ) -> Result<Request<Bytes>, DiscordSignatureVerificationFailure> {
-    let (mut parts, bytes) = request.into_parts();
+    let (parts, bytes) = request.into_parts();
+    let public_key = parts
+        .extensions
+        .get::<DiscordPublicKey>()
+        .as_deref()
+        .ok_or(DiscordSignatureVerificationFailure::MissingPublicKey)?
+        .clone();
+    let signature = get_signature(&parts.headers)?;
+    let timestamp_bytes = get_timestamp_bytes(&parts.headers)?;
 
-    let headers = parts.extract().await?;
-    let signature = get_signature(&headers)?;
-    let timestamp_bytes = get_timestamp_bytes(&headers)?;
-
-    if !verify_discord_signature(public_key, &signature, timestamp_bytes, &bytes).await {
+    if !valid_discord_signature(*public_key, &signature, timestamp_bytes, &bytes) {
         return Err(DiscordSignatureVerificationFailure::InvalidSignature);
     }
 
-    parts.headers = headers;
     let request = Request::from_parts(parts, bytes);
     Ok(request)
 }
-
-fn verify_discord_signature_layer_fn<S>(
-    mut service: S,
-) -> impl Service<
-    (ed25519_dalek::PublicKey, Request<Bytes>),
-    Response = S::Response,
-    Error = DiscordSignatureVerificationLayerError<S::Error>,
-> + Clone
-where
-    S: Service<Request<Bytes>> + Clone,
-    S::Error: Debug + Display
+#[derive(Clone)]
+struct DiscordSignatureVerificationService<S> 
+where S: Clone,
 {
-    service_fn(|(public_key, request)| verify_discord_signature_fn(public_key, request)).then(
-        |res_request| async move {
-            let request = res_request?;
-            service
-                .ready()
-                .await
-                .map_err(DiscordSignatureVerificationLayerError::InnerError)?
-                .call(request)
-                .await
-                .map_err(DiscordSignatureVerificationLayerError::InnerError)
-        },
-    )
+    inner: S,
 }
 
-/// A layer which short-circuits and returns 401 UNAUTHORIZED if the request
-/// does not have a valid Discord signature for the timestamp and bytes of
-/// the message; otherwise, passes the request on unmodified.
-/// Requires that the inner service returns a (StatusCode, JsonValue) so that
-/// the short-circuiting produces the same result type, and also that the
-/// inner service error implement From<Infallible> (which can be accomplished
-/// with the unreachable! macro.
+impl<S, E> Service<Request<Bytes>> for DiscordSignatureVerificationService<S>
+where
+    S: Service<Request<Bytes>, Error = DiscordSignatureVerificationLayerError<E>> + Clone,
+    S::Response: IntoResponse,
+    E: Debug + Display,
+{
+    type Response = S::Response;
+
+    type Error = S::Error;
+
+    type Future = Either<S::Future, Ready<Result<S::Response, S::Error>>>;
+
+    fn poll_ready(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, req: Request<Bytes>) -> Self::Future {
+        match verify_discord_signature(req) {
+            Ok(request) => self.inner.call(request).left_future(),
+            Err(e) => ready(Err(
+                DiscordSignatureVerificationLayerError::DiscordSignatureVerificationFailure(e),
+            ))
+            .right_future(),
+        }
+    }
+}
+
+/// A layer which verifies all incoming requests to make sure they are
+/// signed with Discord's public key for validity. If signature is missing
+/// or invalid, returns an error to prevent any further handling by inner
+/// layers.
 pub fn verify_discord_signature_layer<S>(
     public_key: ed25519_dalek::PublicKey,
 ) -> impl Layer<
     S,
     Service = impl Service<
         Request<Bytes>,
-        Response = S::Response,
+        Response = axum::response::Response,
         Error = DiscordSignatureVerificationLayerError<S::Error>,
     > + Clone,
 >
 where
     S: Service<Request<Bytes>> + Clone,
-    S::Error: Debug + Display,
+    S::Response: IntoResponse,
+    S::Error: Debug + Display
 {
     layer_fn(move |service: S| {
         ServiceBuilder::new()
-            .layer(ClonedStateProviderLayer::new(public_key))
-            .layer_fn(verify_discord_signature_layer_fn)
-            .service(service)
+        .layer(tower_http::add_extension::AddExtensionLayer::new(public_key))
+        .service(
+            DiscordSignatureVerificationService {
+                inner: service
+                    .map_err(DiscordSignatureVerificationLayerError::InnerError)
+                    .map_response(IntoResponse::into_response),
+            }
+        )
     })
+
 }
