@@ -8,6 +8,12 @@ pub mod block;
 /// in ActivityPub so that it can follow others.
 pub mod channel;
 
+/// The Create Activity. 
+pub mod create;
+
+/// The Delete Activity.
+pub mod delete;
+
 /// The Follow Activity.
 pub mod follow;
 
@@ -29,6 +35,9 @@ pub mod post;
 
 /// A tombstone marker for a deleted entity.
 pub mod tombstone;
+
+/// The Update activity.
+pub mod update;
 
 /// A human app user. One-to-one with a Discord user.
 pub mod user;
