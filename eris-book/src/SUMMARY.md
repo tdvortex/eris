@@ -2,7 +2,7 @@
 
 - [Welcome](./welcome.md)
 - [Concepts](./concepts.md)
-    - [Users vs Channels](./concepts/users-vs-channels.md)
+    - [Features](./concepts/features.md)
     - [What is ActivityPub?](./concepts/what-is-activitypub.md)
     - [Objects](./concepts/objects.md)
     - [Activities](./concepts/activites.md)
