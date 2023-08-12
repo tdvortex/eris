@@ -1,6 +1,6 @@
 # Core features
 
-Eris's is designed to play to the strengths of both the Fediverse and Discord.
+Eris is designed to play to the strengths of both the Fediverse and Discord.
 
 ## Comparison with other apps
 
@@ -42,11 +42,11 @@ A **user** is a Discord user, usually a human (but possibly an external bot). Us
 
 A **channel** is a Discord text channel in a Discord server/guild. Channels display posts, and can follow users. But channels *cannot post anything*, so they cannot be followed. 
 
-So, instead of a user only seeing their own personalized feed (like on [Mastodon](https://joinmastodon.org/)), a user can see many channels, and a channel is shared amongst many users. 
+So, instead of a user only seeing their own personalized feed (like on Mastodon), a user can see many channels, and a channel is shared amongst many users. 
 
 ### Posts are public but unlisted
 
-Like feed-based social networks (*a la* Mastodon), when a user makes a message into a post, is is publicly available. It will be directly posted on *all* channels which follow them, even those the user themselves doesn't see and may not even know about. Then, he post might also be re-shared by users in those channels, or shared onto other social networks; anyone who has a link to the post can see it without any authorization required.
+Like feed-based social networks, when a user makes a message into a post, is is publicly available. It will be directly posted on *all* channels which follow them, even those the user themselves doesn't see and may not even know about. Then, the post might also be re-shared by users in those channels, or shared onto other social networks; anyone who has a link to the post can see it without any authorization required.
 
 This means that any post made using Eris could potentially be seen by thousands of people, including complete strangers, anywhere in the world, even if the source message was posted to a private Discord channel. **Do not post sensitive information onto Eris** (or any other public social network)!
 
@@ -54,11 +54,13 @@ However, while a post is publicly *accessible*, it is not publicly *broadcast*. 
 
 If you post a message, it will be shared with your followers (other channels, or users of other applications). But if you don't have any followers, then no one will ever see it (unless you manually share the link some other way).
 
-### Users can Like, Channels can't
+### Users can like and reshare, Channels can't
 
 Users are the only ones who can actually choose to *like* a post. Channels display posts, but they aren't people, and are incapable of liking things.
 
 Imagine if a controversial post showed up on a channel, and half the users thought it was good and the other half thought it was terrible. It wouldn't make sense to either say that "the channel likes this" or "the channel dislikes this", so this isn't allowed.
+
+Similarly, a User can reshare a post to their followers, but Channels don't have any followers, so they can't.
 
 ### Channels and users can block each other
 
@@ -66,9 +68,9 @@ The only action that both channels *and* users can do is to block one another.
 
 When a user blocks a channel, this means "I do not want my posts to show up in this channel". This applies even for reshares; no one can post your content onto this channel. However, this doesn't retroactively unpost messages that were already shared on the channel. It simply means that channel receives no updates about your posts in the future, as if you went silent and stopped posting.
 
-Users can also block other users. This similarly means "I do not want my posts to be forwarded to this person". However, because Eris users do not personally receive messages, this doesn't actually block them from seeing your posts if it's shard on a channel they have access to. And, it doesn't prevent their messages from showing up on a channel that you can see.
+Users can also block other users. This similarly means "I do not want my posts to be forwarded to this person". However, because Eris users do not personally receive messages, this doesn't actually block them from seeing your posts if it's shared on a channel they have access to. And, it doesn't prevent their messages from showing up on a channel that you can see.
 
-Channels can also block users. This means "I do not want this user's posts to show up". Again, this applies even for reshares, making a channel block like a "super unfollow".
+Channels can also block users or actors on other Fediverse apps. This means "I do not want this user's posts to show up". Again, this applies even for reshares, making a channel block like a "super unfollow".
 
 Channels cannot block other channels. This would be meaningless; they can't send messages to each other, so there's nothing to block.
 
@@ -78,6 +80,6 @@ Most feed-based social networks also offer some kind of direct message system fo
 
 Eris does not currently offer a user-to-user direct messaging option. 
 
-Because every Eris user is also a Discord user, if an Eris user wants to DM another Eris user, they can just DM them directly. 
+Because every Eris user is also a Discord user, if an Eris user wants to DM another Eris user, they can just DM them directly through Discord.
 
 For cross-app direct messaging (for example, an Eris user DMing with a Mastodon user) there are difficulties related to Discord's interface, because Eris can only open one DM channel per user no matter how many DM conversations they have concurrently.
