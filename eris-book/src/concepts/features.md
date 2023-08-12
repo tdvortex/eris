@@ -1,6 +1,6 @@
 # Core features
 
-What does it mean to bridge Discord with the Fediverse? 
+Eris's is designed to play to the strengths of both the Fediverse and Discord.
 
 ## Comparison with other apps
 
@@ -26,7 +26,9 @@ A larger Discord community server can often be extremely fast-moving, with a cha
 
 ### Other structures
 
-Of course, other systems are possible. [Lemmy](https://join-lemmy.org), for example, lets users post content to a community, view a community's conetnt, and vote or comment on it.
+Of course, other systems are possible. ActivityPub gives a lot of flexibility in defining the structure of an application, so there are few rules, mostly only guidelines. 
+
+[Lemmy](https://join-lemmy.org), for example, lets users post content to a community, view a community's content, and vote or comment on it. 
 
 ## Eris
 

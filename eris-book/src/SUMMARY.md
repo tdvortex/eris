@@ -2,10 +2,11 @@
 
 - [Welcome](./welcome.md)
 - [Concepts](./concepts.md)
+    - [Federation](./concepts/federation.md)
+    - [ActivityPub](./concepts/activitypub.md)
     - [Features](./concepts/features.md)
-    - [What is ActivityPub?](./concepts/what-is-activitypub.md)
     - [Objects](./concepts/objects.md)
-    - [Activities](./concepts/activites.md)
+    - [Activities](./concepts/activities.md)
 - [User Guide](./user-guide.md)
     - [Joining an Eris Application](./user-guide/join-app.md)
     - [Discord Application Commands](./user-guide/discord-interface.md)
