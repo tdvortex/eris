@@ -16,17 +16,17 @@ This action requires a verified Discord admin user session.
 
 ## Delete Channel
 
-The instance deletes a channel's Service actor, replacing it with a Tombstone. This doesn't actually delete the channel itself in Discord (that has to be done by that guild's admins), but it does delete all records of messages that were posted in the channel, and the channel stops following any user it was previously following.
+The instance deletes a channel's Service actor, replacing it with a Tombstone. This doesn't necessarily delete the channel itself in Discord (that has to be done by that guild's admins), but it does delete all records of messages that were posted in the channel, and the channel stops following any user it was previously following.
 
-This is triggered by the "/admin delete channel" slash command in Discord. It can also be executed by a DELETE request to "/channels/{channel_id}", or using the "deleteChannel" mutation in GraphQL. 
+This is triggered by the "/admin channel delete" slash command in Discord. It can also be executed by a DELETE request to "/channels/{channel_id}", or using the "deleteChannel" mutation in GraphQL. This action requires a verified Discord admin user session.
 
-This action requires a verified Discord admin user session.
+This is also triggered if Eris tries to send a message to a channel, and Discord responds with the "404 Not Found: 10003 Unknown Channel" error code. Eris interprets this to mean that the channel was deleted in the Discord client, and will automatically delete the corresponding channel Actor.
 
 **This action cannot be undone**. Use with extreme caution!
 
 ## Block Actor
 
-The instance blocks an actor, banning them. This is behaves similarly as if every channel and every user on the instance all blocked the actor. If the actor is local, then any activities they attempt will be rejected, with the exception of "delete user" (a banned user is allowed to delete their own account).
+The instance blocks an actor, banning them. This is behaves similarly as if every channel and every user on the instance all blocked the actor. If the actor is local (a user or a channel), then any Activities they attempt will be denied, with the exception of "delete user" (a banned user is allowed to delete their own account).
 
 This does *not* delete their posts, or change their following/followed by status. If the user is later unbanned, they will be restored to full functionality within the instance.
 

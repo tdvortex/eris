@@ -24,7 +24,7 @@ The instance deletes a user, and all of their posts, and all attachments to thos
 
 **This action cannot be undone**. Use with extreme caution!
 
-"Person Delete Person" is the user-initiated version of this Activity, indicating that the user has voluntarily deleted their own account". "Instance Delete Person" is the admin version of this Activity, indicating that the account has been deleted by an instance admin. 
+"Person Delete Person" is the user-initiated version of this Activity, indicating that the user has voluntarily deleted their own account. "Instance Delete Person" is the admin version of this Activity, indicating that the account has been deleted by an instance admin. 
 
 This is triggered by the "Profile > Delete user" either as a message command on a post by that user, or user command in Discord. This can also be executed with a DELETE request to "/users/{user_id}", or by using the "deleteUser" mutation in GraphQL. 
 

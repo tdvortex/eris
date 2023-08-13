@@ -68,11 +68,11 @@ The only action that both channels *and* users can do is to block one another.
 
 When a user blocks a channel, this means "I do not want my posts to show up in this channel". This applies even for reshares; no one can post your content onto this channel. However, this doesn't retroactively unpost messages that were already shared on the channel. It simply means that channel receives no updates about your posts in the future, as if you went silent and stopped posting.
 
-Users can also block other users. This similarly means "I do not want my posts to be forwarded to this person". However, because Eris users do not personally receive messages, this doesn't actually block them from seeing your posts if it's shared on a channel they have access to. And, it doesn't prevent their messages from showing up on a channel that you can see.
+Users can also block other users (including users of other ActivityPub networks). This similarly means "I do not want my posts to be forwarded to this person". However, because Eris users do not personally receive messages, this doesn't actually block them from seeing posts shared on a channel they have access to. And, it doesn't prevent their messages from showing up on a channel that you can see.
 
-Channels can also block users or actors on other Fediverse apps. This means "I do not want this user's posts to show up". Again, this applies even for reshares, making a channel block like a "super unfollow".
+Channels can also block users, or actors on other Fediverse apps. This means "I do not want this user's posts to show up". Again, this applies even for reshares, making a channel block like a "super unfollow".
 
-Channels cannot block other channels. This would be meaningless; they can't send messages to each other, so there's nothing to block.
+Technically, channels can block other channels, but doing so is meaningless, because channels cannot send messages to each other.
 
 ### No direct messages
 
