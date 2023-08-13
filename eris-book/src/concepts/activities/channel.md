@@ -4,12 +4,14 @@ Unlike standard user and admin permissions, authorization privileges for channel
 
 Eris cannot monitor when guild permissions change to know when channel access privileges change, so it cannot effectively mediate over a REST or GraphQL API, even for a signed-in and authenticated user.
 
-As a result, channel actions can **only** be performed from within Discord. 
+As a result, channel actions can **only** be performed from within Discord, or in some casesby an instance admin.
 ## Create channel
 
 A new channel is created, as a Service Actor.
 
 This is triggered automatically the first time any Eris slash command is used in a Discord channel. It can be disabled by setting "allow_new_channels" to false in the instance settings.
+
+This cannot be performed over HTTP, *even by a instance admin.*
 
 ## Follow Actor
 
