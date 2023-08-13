@@ -4,7 +4,7 @@ These are executed by right-clicking on a message.
 
 While the same command list is shown on all messages, the behavior is different depending on whether the message was an ordinary Discord message or an Embed post message made by Eris on behalf of another Actor.
 
-All of these actions must be invoked on a message in a guild text channel, except for the "Post" commands, which can be taken on messages in a DM to the instance's Application user. This allows users to send a private message to Eris and upgrade it to a post without making the original source message public.
+All of these actions must be invoked on a message in a guild text channel, except for the "Post" commands, which can be used on messages in a DM to the instance's Application user. This allows users to send a private message to Eris and upgrade it to a post without making the original source message public.
 
 * **Admin**: Instance-level moderator actions against the message's user, or a posts's author.
     * **Ban**: Bans the author of a post or the user of an ordinary message. This does not stop them from posting Discord messages normally, but their Eris posts will not be shown on any channel in the instance.
