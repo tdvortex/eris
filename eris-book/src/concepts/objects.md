@@ -8,7 +8,7 @@ These are the "things" that Eris creates, hosts, and distributes to the Fedivers
 
 ### Instance/Application
 
-An Eris *instance* is one server, with one web domain, tied to a specific Discord "Application" using their [Application Commands](https://discord.com/developers/docs/interactions/application-commands) API. 
+An Eris *instance* is one server, with one web domain, tied to a specific Discord bot.
 
 It is an ActivityPub Appliciation-type Object. It is an Actor, meaning it can create Activities. These are admin-level actions which relate to the operation of the instance itself, including user management and channel management. 
 
