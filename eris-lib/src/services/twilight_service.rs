@@ -1,28 +1,17 @@
 use std::sync::Arc;
 
 use thiserror::Error;
-use tower::{Service, ServiceBuilder};
+use tower::{service_fn, Service};
 use twilight_http::request::AuditLogReason;
-use twilight_model::id::{marker::ApplicationMarker, Id};
-
-use crate::{
-    layers::provide_cloned_state::ClonedStateProviderLayer,
-    payloads::{DiscordClientAction, DiscordClientActionResponse, MessagePayload},
+use twilight_model::{
+    channel::Message,
+    id::{marker::ApplicationMarker, Id},
 };
 
-/// The shared state required to make requests to Discord using
-/// [`twilight_http::Client`].
-/// This intentionally does **not** implement Clone. There should
-/// only be one client in existence at a time. All its methods
-/// are accessible through &Client so this should be wrapped in
-/// an Arc to be used.
-#[derive(Debug)]
-pub struct TwilightClientState {
-    /// The client itself
-    pub twilight_client: twilight_http::Client,
-    /// The application Id. Used for interaction endpoints.
-    pub application_id: Id<ApplicationMarker>,
-}
+use crate::payloads::{
+    CreateMessage, CreateReply, DeleteMessage, DiscordClientAction, DiscordClientActionResponse,
+    MessagePayload, UpdateInteractionResponse, UpdateMessage,
+};
 
 /// Wrapper around two very similar validation errors from [twilight_validate].
 #[derive(Debug, Error)]
@@ -52,164 +41,205 @@ pub enum TwilightServiceError {
     DeserializationBodyError(#[from] twilight_http::response::DeserializeBodyError),
 }
 
-async fn twilight_service_fn(
-    (state, action): (Arc<TwilightClientState>, DiscordClientAction),
-) -> Result<Option<DiscordClientActionResponse>, TwilightServiceError> {
-    let twilight_client = &state.twilight_client;
-    let application_id = state.application_id;
-    match action {
-        DiscordClientAction::CreateMessage(create_message) => {
-            let request = twilight_client.create_message(create_message.channel_id);
-            let response = match &create_message.message {
-                MessagePayload::Text(text) => {
-                    request
-                        .content(text)
-                        .map_err(TwilightValidationError::from)?
-                        .await?
-                }
-                MessagePayload::Embed(embed) => {
-                    request
-                        .embeds(std::slice::from_ref(embed))
-                        .map_err(TwilightValidationError::from)?
-                        .await?
-                }
-                MessagePayload::TextAndEmbed { text, embed } => {
-                    request
-                        .content(text)
-                        .map_err(TwilightValidationError::from)?
-                        .embeds(std::slice::from_ref(embed))
-                        .map_err(TwilightValidationError::from)?
-                        .await?
-                }
-            };
-
-            let message = response.model().await?;
-            Ok(Some(DiscordClientActionResponse::MessageCreated(message)))
+async fn create_message(
+    twilight_client: &twilight_http::Client,
+    create_message: &CreateMessage,
+) -> Result<Message, TwilightServiceError> {
+    let request = twilight_client.create_message(create_message.channel_id);
+    let response = match &create_message.message {
+        MessagePayload::Text(text) => {
+            request
+                .content(text)
+                .map_err(TwilightValidationError::MessageValidationError)?
+                .await?
         }
-        DiscordClientAction::CreateReply(create_reply) => {
-            let request = twilight_client
-                .create_message(create_reply.message_location.channel_id)
-                .reply(create_reply.message_location.message_id)
-                .fail_if_not_exists(false);
-            let response = match &create_reply.message {
-                MessagePayload::Text(text) => {
-                    request
-                        .content(text)
-                        .map_err(TwilightValidationError::from)?
-                        .await?
-                }
-                MessagePayload::Embed(embed) => {
-                    request
-                        .embeds(std::slice::from_ref(embed))
-                        .map_err(TwilightValidationError::from)?
-                        .await?
-                }
-                MessagePayload::TextAndEmbed { text, embed } => {
-                    request
-                        .content(text)
-                        .map_err(TwilightValidationError::from)?
-                        .embeds(std::slice::from_ref(embed))
-                        .map_err(TwilightValidationError::from)?
-                        .await?
-                }
-            };
-
-            let message = response.model().await?;
-            Ok(Some(DiscordClientActionResponse::MessageCreated(message)))
+        MessagePayload::Embed(embed) => {
+            request
+                .embeds(std::slice::from_ref(embed))
+                .map_err(TwilightValidationError::from)?
+                .await?
         }
-        DiscordClientAction::DeleteMessage(delete_message) => {
-            let mut request = twilight_client.delete_message(
-                delete_message.message_location.channel_id,
-                delete_message.message_location.message_id,
-            );
-
-            if let Some(reason) = &delete_message.reason {
-                request = request
-                    .reason(reason)
-                    .map_err(TwilightValidationError::from)?;
-            }
-
-            request.await?;
-            Ok(None)
+        MessagePayload::TextAndEmbed { text, embed } => {
+            request
+                .content(text)
+                .map_err(TwilightValidationError::from)?
+                .embeds(std::slice::from_ref(embed))
+                .map_err(TwilightValidationError::from)?
+                .await?
         }
-        DiscordClientAction::UpdateInteractionResponse(interaction_response) => {
-            let interaction_client = twilight_client.interaction(application_id);
+    };
 
-            let request =
-                interaction_client.update_response(&interaction_response.interaction_token);
-
-            match &interaction_response.message {
-                MessagePayload::Text(text) => {
-                    request
-                        .content(Some(text))
-                        .map_err(TwilightValidationError::from)?
-                        .await?
-                }
-                MessagePayload::Embed(embed) => {
-                    request
-                        .embeds(Some(std::slice::from_ref(embed)))
-                        .map_err(TwilightValidationError::from)?
-                        .await?
-                }
-                MessagePayload::TextAndEmbed { text, embed } => {
-                    request
-                        .content(Some(text))
-                        .map_err(TwilightValidationError::from)?
-                        .embeds(Some(std::slice::from_ref(embed)))
-                        .map_err(TwilightValidationError::from)?
-                        .await?
-                }
-            };
-            Ok(None)
-        }
-        DiscordClientAction::UpdateMessage(update_message) => {
-            let request = twilight_client.update_message(
-                update_message.message_location.channel_id,
-                update_message.message_location.message_id,
-            );
-
-            match &update_message.message {
-                MessagePayload::Text(text) => {
-                    request
-                        .content(Some(text))
-                        .map_err(TwilightValidationError::from)?
-                        .await?
-                }
-                MessagePayload::Embed(embed) => {
-                    request
-                        .embeds(Some(std::slice::from_ref(embed)))
-                        .map_err(TwilightValidationError::from)?
-                        .await?
-                }
-                MessagePayload::TextAndEmbed { text, embed } => {
-                    request
-                        .content(Some(text))
-                        .map_err(TwilightValidationError::from)?
-                        .embeds(Some(std::slice::from_ref(embed)))
-                        .map_err(TwilightValidationError::from)?
-                        .await?
-                }
-            };
-            Ok(None)
-        }
-    }
+    let message = response.model().await?;
+    Ok(message)
 }
+
+async fn create_reply(
+    twilight_client: &twilight_http::Client,
+    create_reply: &CreateReply,
+) -> Result<Message, TwilightServiceError> {
+    let request = twilight_client
+        .create_message(create_reply.message_location.channel_id)
+        .reply(create_reply.message_location.message_id)
+        .fail_if_not_exists(false);
+    let response = match &create_reply.message {
+        MessagePayload::Text(text) => {
+            request
+                .content(text)
+                .map_err(TwilightValidationError::from)?
+                .await?
+        }
+        MessagePayload::Embed(embed) => {
+            request
+                .embeds(std::slice::from_ref(embed))
+                .map_err(TwilightValidationError::from)?
+                .await?
+        }
+        MessagePayload::TextAndEmbed { text, embed } => {
+            request
+                .content(text)
+                .map_err(TwilightValidationError::from)?
+                .embeds(std::slice::from_ref(embed))
+                .map_err(TwilightValidationError::from)?
+                .await?
+        }
+    };
+
+    let message = response.model().await?;
+    Ok(message)
+}
+
+async fn delete_message(
+    twilight_client: &twilight_http::Client,
+    delete_message: &DeleteMessage,
+) -> Result<(), TwilightServiceError> {
+    let mut request = twilight_client.delete_message(
+        delete_message.message_location.channel_id,
+        delete_message.message_location.message_id,
+    );
+
+    if let Some(reason) = &delete_message.reason {
+        request = request
+            .reason(reason)
+            .map_err(TwilightValidationError::from)?;
+    }
+
+    request.await?;
+    Ok(())
+}
+
+async fn update_interaction_response(
+    twilight_client: &twilight_http::Client,
+    application_id: Id<ApplicationMarker>,
+    update_interaction_response: &UpdateInteractionResponse,
+) -> Result<(), TwilightServiceError> {
+    let interaction_client = twilight_client.interaction(application_id);
+
+    let request =
+        interaction_client.update_response(&update_interaction_response.interaction_token);
+
+    match &update_interaction_response.message {
+        MessagePayload::Text(text) => {
+            request
+                .content(Some(text))
+                .map_err(TwilightValidationError::from)?
+                .await?
+        }
+        MessagePayload::Embed(embed) => {
+            request
+                .embeds(Some(std::slice::from_ref(embed)))
+                .map_err(TwilightValidationError::from)?
+                .await?
+        }
+        MessagePayload::TextAndEmbed { text, embed } => {
+            request
+                .content(Some(text))
+                .map_err(TwilightValidationError::from)?
+                .embeds(Some(std::slice::from_ref(embed)))
+                .map_err(TwilightValidationError::from)?
+                .await?
+        }
+    };
+    Ok(())
+}
+
+async fn update_message(
+    twilight_client: &twilight_http::Client,
+    update_message: &UpdateMessage,
+) -> Result<(), TwilightServiceError> {
+    let request = twilight_client.update_message(
+        update_message.message_location.channel_id,
+        update_message.message_location.message_id,
+    );
+
+    match &update_message.message {
+        MessagePayload::Text(text) => {
+            request
+                .content(Some(text))
+                .map_err(TwilightValidationError::from)?
+                .await?
+        }
+        MessagePayload::Embed(embed) => {
+            request
+                .embeds(Some(std::slice::from_ref(embed)))
+                .map_err(TwilightValidationError::from)?
+                .await?
+        }
+        MessagePayload::TextAndEmbed { text, embed } => {
+            request
+                .content(Some(text))
+                .map_err(TwilightValidationError::from)?
+                .embeds(Some(std::slice::from_ref(embed)))
+                .map_err(TwilightValidationError::from)?
+                .await?
+        }
+    };
+    Ok(())
+}
+
+
 
 /// Returns a [tower::Service] which processes [DiscordClientAction]s and
 /// sometimes returns a [DiscordClientActionResponse] for additional
-/// processing.
+/// processing. If it errors, returns the offending action as well as the error.
 pub fn twilight_service(
     twilight_client: twilight_http::Client,
     application_id: Id<ApplicationMarker>,
 ) -> impl Service<
     DiscordClientAction,
     Response = Option<DiscordClientActionResponse>,
-    Error = TwilightServiceError,
+    Error = (DiscordClientAction, TwilightServiceError),
 > + Clone {
-    ServiceBuilder::new()
-        .layer(ClonedStateProviderLayer::with_arc(TwilightClientState {
-            twilight_client,
-            application_id,
-        }))
-        .service_fn(twilight_service_fn)
+    let twilight_client = Arc::new(twilight_client);
+
+    service_fn(move |request: DiscordClientAction| {
+        let twilight_client = twilight_client.clone();
+        async move {
+            match &request {
+                DiscordClientAction::CreateMessage(req) => create_message(&twilight_client, &req)
+                    .await
+                    .map(|message| Some(DiscordClientActionResponse::MessageCreated(message)))
+                    .map_err(|error| (request, error)),
+                DiscordClientAction::CreateReply(req) => create_reply(&twilight_client, &req)
+                    .await
+                    .map(|message| Some(DiscordClientActionResponse::MessageCreated(message)))
+                    .map_err(|error| (request, error)),
+                DiscordClientAction::DeleteMessage(req) => delete_message(&twilight_client, &req)
+                    .await
+                    .map(|_| Option::None)
+                    .map_err(|error| (request, error)),
+                DiscordClientAction::UpdateInteractionResponse(req) => {
+                    update_interaction_response(&twilight_client, application_id, &req)
+                        .await
+                        .map(|_| Option::None)
+                        .map_err(|error| {
+                            (request, error)
+                        })
+                }
+                DiscordClientAction::UpdateMessage(req) => update_message(&twilight_client, &req)
+                    .await
+                    .map(|_| Option::None)
+                    .map_err(|error| (request, error)),
+            }
+        }
+    })
 }
