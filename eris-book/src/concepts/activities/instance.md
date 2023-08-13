@@ -2,6 +2,7 @@
 
 These actions are taken by the Application. These are, either explicitly or implictly, admin actions.
 
+
 ## Delete user
 
 The instance deletes a user, and all of their posts, and all attachments to those posts. Any attempt to access these objects in the future will give a Tombstone object.
@@ -10,7 +11,7 @@ The instance deletes a user, and all of their posts, and all attachments to thos
 
 "Instance Delete Person" is the admin version of this Activity, indicating that the account has been deleted by an instance admin. Users can also delete their own accounts, which are recorded as "Person Delete Person" instead.
 
-This is triggered by the "Admin > Delete user" either as a message command on a post by that user, or user command in Discord. This can also be executed with a DELETE request to "/users/{user_id}", or by using the "deleteUser" mutation in GraphQL. 
+This is triggered by the "/admin user delete" slash command, or with the "Profile > Delete account" message or user command. This can also be executed with a DELETE request to "/api/users/{user_id}", or by using the "deleteUser" mutation in GraphQL. 
 
 This action requires a verified Discord admin user session.
 
@@ -18,9 +19,9 @@ This action requires a verified Discord admin user session.
 
 The instance deletes a channel's Service actor, replacing it with a Tombstone. This doesn't necessarily delete the channel itself in Discord (that has to be done by that guild's admins), but it does delete all records of messages that were posted in the channel, and the channel stops following any user it was previously following.
 
-This is triggered by the "/admin channel delete" slash command in Discord. It can also be executed by a DELETE request to "/channels/{channel_id}", or using the "deleteChannel" mutation in GraphQL. This action requires a verified Discord admin user session.
+This is triggered by the "/admin channel delete" slash command in Discord. It can also be executed by a DELETE request to "/api/channels/{guild_id}/{channel_id}", or using the "deleteChannel" mutation in GraphQL. This action requires a verified Discord admin user session.
 
-This is also triggered if Eris tries to send a message to a channel, and Discord responds with the "404 Not Found: 10003 Unknown Channel" error code. Eris interprets this to mean that the channel was deleted in the Discord client, and will automatically delete the corresponding channel Actor.
+This is also triggered if Eris tries to send a message to a channel, and Discord responds with the "404 Not Found: 10003 Unknown Channel" error code. Eris interprets this to mean that the channel was deleted in Discord, and will automatically delete the corresponding channel Actor.
 
 **This action cannot be undone**. Use with extreme caution!
 
@@ -32,7 +33,7 @@ This does *not* delete their posts, or change their following/followed by status
 
 An instance cannot block itself, but it can block other instances, refusing all incoming activities and not forwarding any outgoing activities.
 
-This is triggered by "Admin > Ban user" either as a message command on a post by that user, or user command in Discord. It can also be triggered by a POST request to "/banned" with the URL of the actor to be banned, or using the "banUser" mutation in GraphQL.
+This is triggered by the "/admin ban" slash command, the "Admin > Ban" message command, or the "Admin > Ban" user command. It can also be triggered by a POST request to "/api/banned" with the URL of the actor to be banned, or using the "banUser" mutation in GraphQL.
 
 This action requires a verified Discord admin user session.
 
@@ -40,7 +41,7 @@ This action requires a verified Discord admin user session.
 
 The instance unblocks an actor, unbanning them. This removes the block on their profile, restoring them to full functionality.
 
-This is triggered by "Admin > Unban user" either as a message command on a post by that user, or user command in Discord. It can also be triggered by a POST request to "/unban" with the URL of the actor to be banned, or using the "unbanUser" mutation in GraphQL.
+This is triggered by the "/admin undo ban" slash command, the "Admin > Undo > Ban" message command, or the "Admin > Undo > Ban" user command. It can also be triggered by a POST request to "/api/unban" with the URL of the actor to be unbanned, or using the "unbanUser" mutation in GraphQL.
 
 This action requires a verified Discord admin user session.
 
@@ -48,7 +49,7 @@ This action requires a verified Discord admin user session.
 
 The instance's settings can be changed with this action.
 
-There is no Discord application command to update the entire instance's settings, but it can be performed by a PUT request to "/" or using the "updateInstance" mutation in GraphQL.
+There is no Discord application command to update the entire instance's settings, but it can be performed by a PUT request to "/api/" or using the "updateInstance" mutation in GraphQL.
 
 The instance Applications's private key **cannot** be changed. Doing so would make impossible for other instances to verify its actions.
 

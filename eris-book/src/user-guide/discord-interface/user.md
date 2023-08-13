@@ -10,6 +10,11 @@ These are executed by right-clicking on a user.
 * **Channel**: Channel actions regarding the user.
     * **Block**: Blocks the user in the channel This does not stop them from posting Discord messages normally, but their Eris posts will not be shown on this channel. This is the same as the "/channel block \<user\>" slash command.
     * **Follow**: Follows the user in the channel. This is the same as the "/channel follow \<user\>" slash command.
+* **Profile**: Actions that a user can take with their own profile.
+    * **Change Handle**: user can change their WebFinger identifier to a different value, provided that it is unique on the server.
+    * **Delete account**: user (or an admin) deletes the user's account. **This cannot be undone**.
+    * **Accept followers**: user sets their profile to automatically accept new followers (the default).
+    * **Disable followers**: user sets their profile to automatically reject new follow requests.
 * **Undo**: Undoes a previous action.  
     * **Block**: The user executing the command unblocks the targeted user.
     * **Channel**: Undoes a channel action.

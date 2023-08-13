@@ -28,7 +28,7 @@ An Eris *channel* is a Discord text channel that has been registered with the in
 
 It is an ActivityPub Service, which is an Actor and can create Activities. These Activities are related to receiving and filtering content.
 
-The relative path for a channel is "/guilds/{guild_id}/channels{channel_id}".
+The relative path for a channel is "/channels/{guild_id}/{channel_id}".
 
 ### Post/Note
 
