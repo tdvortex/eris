@@ -24,7 +24,7 @@ At the other extreme, we have **peer-to-peer** systems. In a peer-to-peer system
 
 Instead of a central authority making the rules, in a peer-to-peer system the participants all agree to a shared *protocol*, the rules for interacting with each other. If a peer breaks these rules, the other peers will reject their actions, so the only way to participate is to play along.
 
-Data in a peer-to-peer system does not live in one place; instead, copies are **distributed** across the machines in a network. This makes it impossible for any one peer to delete or edit the data. This makes peer-to-peer file-sharing systems like [Bittorrent](https://www.bittorrent.com/) very popular for spreading pirated or otherwise illegal content.
+Data in a peer-to-peer system does not live in one place; instead, copies are **distributed** across the machines in a network. This makes it impossible for any one peer to delete or edit the data. Peer-to-peer file-sharing systems like [Bittorrent](https://www.bittorrent.com/) are very popular for spreading pirated or otherwise illegal content, because there is no one single source to take down.
 
 Peer-to-peer systems using a [blockchain](https://en.wikipedia.org/wiki/Blockchain) protocol do allow for write-only data using a *consensus* mechanism. However, the incentive for reaching consensus is normally tied to a [cryptocurrency](https://en.wikipedia.org/wiki/Cryptocurrency) like Bitcoin or Ether, a speculative investment that users hope to be able to spend or sell later. 
 

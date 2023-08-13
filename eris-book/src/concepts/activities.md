@@ -8,4 +8,4 @@ Eris allows different actions to be taken by the instance (Application), users (
 
 Eris will also try to respond to actions taken by verified foreign actors by translating them into one of these actions:
 
-* **Actor** (foreign): Create Object, Update Object, Delete Object, Like post, Undo Like post, Announce Object, Undo Announce Object, Block user, Undo Block user, Block channel, Undo Block channel, Accept Follow, Reject Follow
+* **Actor** (foreign): Create Object, Update Object, Delete Object, Like post, Undo Like post, Announce Object, Undo Announce Object, Follow user, Undo Follow user, Block user, Undo Block user, Block channel, Undo Block channel, Accept Follow, Reject Follow

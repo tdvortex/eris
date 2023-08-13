@@ -17,7 +17,7 @@ SMTP supports one operation: *user sends email to \[targets\]*. Here's how that 
 3. When an email server receives an email addressed to one of its users, it puts that email in that user's *inbox*.
 4. The receiving user asks their server for emails in their inbox, and is provided a list of every new email they haven't yet seen.
 
-Email servers can, at their choice, choose *not* to deliver messages to other servers or client. And there's a very good reason to do so--spam. An email server that is bombarded with spam might block the sender accounts, or even entire spam servers, and refuse to deliver their emails to its clients. 
+Email servers can, at their choice, choose *not* to deliver messages to other servers or clients. And there's a very good reason to do so--spam. An email server that is bombarded with spam might block the sender accounts, or even entire spam servers, and refuse to deliver their emails to its clients. 
 
 Of course, if spam filtering is done poorly, it can end up hiding emails that users actually want to see. That's the tradeoff; anyone you trust to moderate can also censor. But there are lots of email providers, and it's not too hard to set up your own SMTP server if you like, so no one is forced to live with a bad email provider. 
 
