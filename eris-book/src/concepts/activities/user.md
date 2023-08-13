@@ -14,9 +14,22 @@ This can also be executed with a POST request to "/users", or by using the "crea
 
 The user changes their personal settings.
 
-There is no single "update" command in Discord, but individual management actions are covered by the "Update profile" message command (right-click on user). 
+There is no single "update" command in Discord, but individual management actions are covered by the "Profile > Update" message command group (right-click on user). 
 
 This can also be executed with a PUT request to "/users/{user_id}", or by using the "updateProfile" mutation in GraphQL.
+
+## Delete user
+
+The instance deletes a user, and all of their posts, and all attachments to those posts. Any attempt to access these objects in the future will give a Tombstone object.
+
+**This action cannot be undone**. Use with extreme caution!
+
+"Person Delete Person" is the user-initiated version of this Activity, indicating that the user has voluntarily deleted their own account". "Instance Delete Person" is the admin version of this Activity, indicating that the account has been deleted by an instance admin. 
+
+This is triggered by the "Profile > Delete user" either as a message command on a post by that user, or user command in Discord. This can also be executed with a DELETE request to "/users/{user_id}", or by using the "deleteUser" mutation in GraphQL. 
+
+This action requires a verified Discord admin user session.
+
 
 ## Create post
 
@@ -87,7 +100,7 @@ However, if the blocked target is on a different instance or application, there 
 
 Additionally, the blocked target is prevented from modifying the "likes" or "shares" of any Notes the user made, but this doesn't necessarily prevent them from actually resharing the post. 
 
-This is executed by "Block user (as user)" either as a message command on a post by that user, or user command in Discord. It can also be executed by a POST request with the Id of the blocked actor to "/users/{user_id}/block", or by the "blockActor" mutation in GraphQL.
+This is executed by "Block user" either as a message command on a post by that user, or user command in Discord. It can also be executed by a POST request with the Id of the blocked actor to "/users/{user_id}/block", or by the "blockActor" mutation in GraphQL.
 
 ## Undo Block Actor
 
