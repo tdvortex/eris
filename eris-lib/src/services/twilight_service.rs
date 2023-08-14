@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
+use futures_util::future::{ready, Ready};
 use thiserror::Error;
-use tower::{service_fn, Service};
+use tower::{Service, retry::{Policy, RetryLayer}, ServiceBuilder};
 use twilight_http::request::AuditLogReason;
 use twilight_model::{
     channel::Message,
@@ -197,6 +198,60 @@ async fn update_message(
 }
 
 
+#[derive(Debug, Clone, Copy)]
+struct RetryOnServerError;
+
+impl<Res> Policy<Arc<DiscordClientAction>, Res, TwilightServiceError> for RetryOnServerError {
+    type Future = Ready<Self>;
+
+    fn retry(&self, _req: &Arc<DiscordClientAction>, result: Result<&Res, &TwilightServiceError>) -> Option<Self::Future> {
+        let Err(e) = result else {
+            return Some(ready(RetryOnServerError));
+        };
+
+        match e {
+            TwilightServiceError::TwilightValidationError(_) => {
+                // Client error, cannot retry
+                None
+            }
+            TwilightServiceError::TwilightClientError(e) => {
+                match e.kind() {
+                    twilight_http::error::ErrorType::Response { body: _, error: _, status } => {
+                        if status.is_server_error() {
+                            // Something went wrong on Discord's side, retry
+                            Some(ready(RetryOnServerError))
+                        } else {
+                            // Not a 5xx error, don't retry
+                            None
+                        }
+                    }
+                    twilight_http::error::ErrorType::ServiceUnavailable { response: _ } => {
+                        // 503 error, retry
+                        Some(ready(RetryOnServerError))
+                    }
+                    twilight_http::error::ErrorType::RequestTimedOut => {
+                        // Network goblins, retry
+                        Some(ready(RetryOnServerError))
+                    }
+                    _ =>  {
+                        // Unknown error, not safe to retry
+                        None
+                    }
+                }
+            }
+            TwilightServiceError::DeserializationBodyError(_) => {
+                // Discord responded with a 2xx status code
+                // but we couldn't deserialize the body
+                // NOT safe to retry, request may not have been idempotent
+                None
+            }
+        }
+    }
+
+    fn clone_request(&self, req: &Arc<DiscordClientAction>) -> Option<Arc<DiscordClientAction>> {
+        Some(req.clone())
+    }
+}
 
 /// Returns a [tower::Service] which processes [DiscordClientAction]s and
 /// sometimes returns a [DiscordClientActionResponse] for additional
@@ -207,38 +262,34 @@ pub fn twilight_service(
 ) -> impl Service<
     DiscordClientAction,
     Response = Option<DiscordClientActionResponse>,
-    Error = (DiscordClientAction, TwilightServiceError),
+    Error = TwilightServiceError,
 > + Clone {
     let twilight_client = Arc::new(twilight_client);
 
-    service_fn(move |request: DiscordClientAction| {
+    ServiceBuilder::new()
+    .map_request(|action| Arc::new(action))
+    .layer(RetryLayer::new(RetryOnServerError))
+    .service_fn(move |request: Arc<DiscordClientAction>| {
         let twilight_client = twilight_client.clone();
         async move {
-            match &request {
+            match request.as_ref() {
                 DiscordClientAction::CreateMessage(req) => create_message(&twilight_client, &req)
                     .await
-                    .map(|message| Some(DiscordClientActionResponse::MessageCreated(message)))
-                    .map_err(|error| (request, error)),
+                    .map(|message| Some(DiscordClientActionResponse::MessageCreated(message))),
                 DiscordClientAction::CreateReply(req) => create_reply(&twilight_client, &req)
                     .await
-                    .map(|message| Some(DiscordClientActionResponse::MessageCreated(message)))
-                    .map_err(|error| (request, error)),
+                    .map(|message| Some(DiscordClientActionResponse::MessageCreated(message))),
                 DiscordClientAction::DeleteMessage(req) => delete_message(&twilight_client, &req)
                     .await
-                    .map(|_| Option::None)
-                    .map_err(|error| (request, error)),
+                    .map(|_| Option::None),
                 DiscordClientAction::UpdateInteractionResponse(req) => {
                     update_interaction_response(&twilight_client, application_id, &req)
                         .await
                         .map(|_| Option::None)
-                        .map_err(|error| {
-                            (request, error)
-                        })
                 }
                 DiscordClientAction::UpdateMessage(req) => update_message(&twilight_client, &req)
                     .await
-                    .map(|_| Option::None)
-                    .map_err(|error| (request, error)),
+                    .map(|_| Option::None),
             }
         }
     })
