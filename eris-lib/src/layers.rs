@@ -12,6 +12,10 @@ pub mod provide_cloned_state;
 /// with a payload of [hyper::body::Bytes].
 pub mod deserialize_json;
 
+/// An adaptor layer which queues calls to a [tower::Service] and returns to the
+/// caller a oneshot receiver handle that will pass through errors.
+pub mod callback_service;
+
 /// A [`tower::Layer`] which constructs a [tower::Service] that responds to an
 /// Interaction by queuing it and responding with DEFERRED_CHANNEL_MESSAGE as
 /// quickly as possible. Must be provided with a service that takes a
