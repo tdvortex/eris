@@ -36,6 +36,10 @@ where
     Q: Clone,
     Q::Error: Debug + Display,
 {
+
+
+
+    
     twilight_service(twilight_client, application_id)
         .then(|result_option_response| async move {
             match result_option_response {
