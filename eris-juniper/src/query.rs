@@ -1,6 +1,7 @@
 use juniper::graphql_object;
 
-use crate::{MockContext, Instance};
+use crate::MockContext;
+use crate::nodes::Instance;
 
 /// The root Query object.
 pub struct Query;

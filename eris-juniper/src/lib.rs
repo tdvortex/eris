@@ -1,29 +1,23 @@
 #![warn(missing_docs)]
 //! eris-juniper defines the GraphQL API for Eris.
-
-mod actor;
-
-mod channel;
+//! It conforms to the [Cursor Connections](https://graphql.org/learn/global-object-identification/)
+//! specification and the [Global Object Identification](https://graphql.org/learn/global-object-identification/)
+//! specification.
 
 mod context;
 pub use context::MockContext;
 
-mod image;
+/// Edge types, which represent a relationship between two Nodes.
+pub mod edges;
 
-mod instance;
-pub use instance::Instance;
+/// Interfaces which standardize functionality.
+pub mod interfaces;
 
-mod message;
+/// Node types, representing a queryable entity.
+pub mod nodes;
 
-mod object;
-
-mod post;
+/// Scalar types, defining concrete (non-query) data.
+pub mod scalars;
 
 mod query;
 pub use query::Query;
-
-mod snowflake;
-pub use snowflake::Snowflake;
-
-mod user;
-mod video;

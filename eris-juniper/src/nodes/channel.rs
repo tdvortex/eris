@@ -1,7 +1,7 @@
 use juniper::GraphQLObject;
 use url::Url;
 
-use crate::{Snowflake, object::Object};
+use crate::{Snowflake, object::ActivityPubObject};
 
 #[derive(GraphQLObject)]
 pub struct Channel {
@@ -9,7 +9,7 @@ pub struct Channel {
     channel_id: Snowflake,
 }
 
-impl Object for Channel {
+impl ActivityPubObject for Channel {
     fn activitypub_id(&self) -> Url {
         todo!()
     }
