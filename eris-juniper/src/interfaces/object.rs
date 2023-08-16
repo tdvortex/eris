@@ -3,10 +3,10 @@ use url::Url;
 
 use super::Node;
 
+#[graphql_interface]
 /// An ActivityPub Object, with no other guarantees. May be a local Actor,
 /// a foreign Actor, a locally-created Object, an Activity, or any other
 /// item which ActivityPub recognizes.
-#[graphql_interface]
 pub trait ActivityPubObject: Node {
     /// The URL for this object.
     fn activitypub_id(&self) -> Url;
